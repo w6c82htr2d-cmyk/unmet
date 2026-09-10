@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="light" data-lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unmet — Product Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --radius-phone: 34px;
+    --radius-card: 14px;
+    --radius-chip: 999px;
+    --font-head-en: 'Space Grotesk', 'Inter', sans-serif;
+    --font-body-en: 'Inter', sans-serif;
+    --font-ar: 'Tajawal', sans-serif;
+  }
+  html[data-theme="light"] {
+    --bg: #FCFCFB;
+    --page-decor: #ECEBE8;
+    --surface: #FFFFFF;
+    --card: #F1F0EE;
+    --card-strong: #E8E6E3;
+    --border: #E1E0DD;
+    --text: #232326;
+    --text-muted: #6C6C72;
+    --text-faint: #9B9A9E;
+    --rose: #22436B;
+    --rose-soft: #E3E9F1;
+    --rose-text-on: #FFFFFF;
+    --silver: #9C9CA3;
+    --nav-bg: #FFFFFF;
+    --shadow: 0 24px 60px -24px rgba(30,28,30,0.28);
+    --track: #E7E6E3;
+  }
+  html[data-theme="dark"] {
+    --bg: #17171A;
+    --page-decor: #232326;
+    --surface: #1F1F23;
+    --card: #29292E;
+    --card-strong: #323238;
+    --border: #38383E;
+    --text: #F3F2F1;
+    --text-muted: #ACABB0;
+    --text-faint: #75757B;
+    --rose: #7FA6D6;
+    --rose-soft: #253347;
+    --rose-text-on: #122033;
+    --silver: #9C9CA3;
+    --nav-bg: #1F1F23;
+    --shadow: 0 24px 60px -20px rgba(0,0,0,0.55);
+    --track: #3A3A40;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body-en);
+    transition: background .25s ease, color .25s ease;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
+  html[data-lang="ar"] body { font-family: var(--font-ar); }
+  html[data-lang="ar"] .font-head { font-family: var(--font-ar); }
+
+  .font-head { font-family: var(--font-head-en); }
+
+  /* background decor */
+  .bg-decor { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .bg-decor svg { position: absolute; opacity: 0.5; }
+  .bg-decor .hex1 { top: -120px; right: -140px; width: 420px; }
+  .bg-decor .hex2 { bottom: -160px; left: -160px; width: 480px; }
+  html[dir="rtl"] .bg-decor .hex1 { right: auto; left: -140px; }
+  html[dir="rtl"] .bg-decor .hex2 { left: auto; right: -160px; }
+
+  /* top bar */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 32px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .brand-name { font-family: var(--font-head-en); font-weight: 700; font-size: 17px; letter-spacing: 1px; }
+  html[data-lang="ar"] .brand-name { font-family: var(--font-ar); letter-spacing: 0; }
+
+  .controls { display: flex; align-items: center; gap: 10px; }
+  .toggle-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-chip);
+    padding: 5px; cursor: pointer;
+    font-size: 12.5px; font-weight: 600;
+  }
+  .toggle-pill button {
+    all: unset; cursor: pointer;
+    padding: 7px 13px; border-radius: var(--radius-chip);
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text-muted);
+    transition: background .18s ease, color .18s ease;
+  }
+  .toggle-pill button.active { background: var(--rose); color: var(--rose-text-on); }
+  .toggle-pill svg { width: 14px; height: 14px; }
+
+  /* intro */
+  .intro {
+    position: relative; z-index: 1;
+    max-width: 900px; margin: 0 auto;
+    padding: 56px 32px 8px;
+    text-align: center;
+  }
+  .intro .eyebrow {
+    color: var(--rose); font-weight: 600; font-size: 12.5px;
+    letter-spacing: 1.5px; margin-bottom: 10px;
+  }
+  .intro h1 {
+    font-family: var(--font-head-en); font-size: 34px; font-weight: 700;
+    margin: 0 0 12px; letter-spacing: 0.2px;
+  }
+  html[data-lang="ar"] .intro h1 { font-family: var(--font-ar); font-weight: 800; }
+  .intro p {
+    color: var(--text-muted); font-size: 15px; line-height: 1.6;
+    max-width: 560px; margin: 0 auto;
+  }
+
+  /* gallery */
+  .gallery {
+    position: relative; z-index: 1;
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 54px 44px;
+    padding: 56px 32px 100px;
+    max-width: 1500px; margin: 0 auto;
+  }
+  .screen-block { display: flex; flex-direction: column; align-items: center; width: 300px; }
+  .screen-label { margin-top: 18px; text-align: center; }
+  .screen-label .num {
+    display: inline-block; font-family: var(--font-head-en); font-size: 11px;
+    color: var(--silver); letter-spacing: 1px; margin-bottom: 3px;
+  }
+  .screen-label .name { font-weight: 600; font-size: 14.5px; }
+  html[data-lang="ar"] .screen-label .name { font-family: var(--font-ar); }
+
+  /* phone frame */
+  .phone {
+    width: 300px; height: 632px;
+    background: var(--surface);
+    border-radius: var(--radius-phone);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .phone-notch {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    width: 70px; height: 7px; border-radius: 999px;
+    background: var(--border);
+    z-index: 5;
+  }
+  .phone-screen {
+    flex: 1; overflow: hidden; padding: 40px 18px 12px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .phone-screen.no-scroll-pad { padding-top: 40px; }
+
+  /* bottom nav */
+  .bottom-nav {
+    display: flex; align-items: center; justify-content: space-around;
+    padding: 10px 6px 16px;
+    background: var(--nav-bg);
+    border-top: 1px solid var(--border);
+  }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text-faint); }
+  .nav-item svg { width: 19px; height: 19px; }
+  .nav-item span { font-size: 9.5px; font-weight: 600; }
+  .nav-item.active { color: var(--rose); }
+
+  /* generic elements */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius-card);
+    padding: 14px 15px;
+  }
+  .card.strong { background: var(--card-strong); }
+  .card.on-rose { background: var(--rose); color: var(--rose-text-on); }
+
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row.between { justify-content: space-between; }
+  .grow { flex: 1; min-width: 0; }
+
+  .icon-circle {
+    width: 34px; height: 34px; min-width: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--rose-soft); color: var(--rose);
+  }
+  .icon-circle svg { width: 17px; height: 17px; }
+  .icon-circle.filled { background: var(--rose); color: var(--rose-text-on); }
+
+  .label-sm { font-size: 10.5px; color: var(--text-muted); font-weight: 600; letter-spacing: .2px; }
+  .value-lg { font-family: var(--font-head-en); font-size: 20px; font-weight: 700; }
+  html[data-lang="ar"] .value-lg { font-family: var(--font-ar); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 600; padding: 4px 9px;
+    border-radius: var(--radius-chip); background: var(--card-strong); color: var(--text-muted);
+  }
+  .chip.rose { background: var(--rose-soft); color: var(--rose); }
+  .chip.dark-rose { background: var(--rose); color: var(--rose-text-on); }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; padding: 13px; border-radius: 13px; border: none;
+    font-weight: 700; font-size: 13.5px; cursor: pointer; font-family: inherit;
+  }
+  .btn.primary { background: var(--rose); color: var(--rose-text-on); }
+  .btn.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+
+  .field {
+    width: 100%; border: 1px solid var(--border); background: var(--surface);
+    border-radius: 11px; padding: 10px 12px; font-size: 12.5px; color: var(--text);
+    font-family: inherit;
+  }
+  .field::placeholder { color: var(--text-faint); }
+  textarea.field { resize: none; }
+
+  h2.screen-title { font-family: var(--font-head-en); font-size: 19px; font-weight: 700; margin: 0; }
+  html[data-lang="ar"] h2.screen-title { font-family: var(--font-ar); font-weight: 800; }
+  .screen-subtitle { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+  .divider { height: 1px; background: var(--border); border: none; margin: 2px 0; }
+
+  /* preview pills for greeting demo */
+  .preview-row { display: flex; gap: 6px; }
+  .preview-pill {
+    flex: 1; text-align: center; font-size: 10px; font-weight: 700;
+    padding: 6px 0; border-radius: 999px; background: var(--card);
+    color: var(--text-muted); cursor: pointer; border: 1px solid transparent;
+  }
+  .preview-pill.active { background: var(--rose-soft); color: var(--rose); border-color: var(--rose); }
+
+  /* week strip */
+  .week-strip { display: flex; justify-content: space-between; }
+  .day-pill { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .day-pill .d { font-size: 9.5px; color: var(--text-faint); font-weight: 600; }
+  .day-pill .n {
+    width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 11.5px; font-weight: 700; color: var(--text-muted); position: relative;
+  }
+  .day-pill.today .n { background: var(--rose); color: var(--rose-text-on); }
+  .day-pill .dot { position: absolute; bottom: -6px; width: 4px; height: 4px; border-radius: 50%; background: var(--rose); }
+
+  /* calendar timeline */
+  .timeline { display: flex; flex-direction: column; gap: 8px; }
+  .tl-row { display: flex; gap: 10px; align-items: stretch; }
+  .tl-time { width: 44px; font-size: 9.5px; color: var(--text-faint); font-weight: 600; padding-top: 10px; }
+  .tl-block { flex: 1; border-radius: 10px; padding: 9px 11px; font-size: 11px; font-weight: 600; }
+  .tl-block.event { background: var(--card-strong); color: var(--text-muted); }
+  .tl-block.suggest { background: var(--rose-soft); color: var(--rose); border: 1px dashed var(--rose); }
+  .tl-block .sub { font-weight: 500; font-size: 9.5px; opacity: .8; margin-top: 2px; }
+
+  /* stats grid */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .stat-card { background: var(--card); border-radius: 12px; padding: 11px 12px; }
+
+  /* matrix mini */
+  .matrix-mini { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .matrix-mini .mrow { display: flex; }
+  .matrix-mini .mcell {
+    flex: 1; padding: 9px 10px; font-size: 9.5px; font-weight: 700;
+    border: 0.5px solid var(--border);
+    min-height: 46px;
+  }
+  .matrix-mini .mcell.hi { background: var(--rose); color: var(--rose-text-on); }
+  .matrix-mini .mcell.lo { background: var(--surface); color: var(--text-muted); font-weight: 600; }
+
+  .task-row { display: flex; align-items: center; gap: 8px; }
+  .task-dot { width: 7px; height: 7px; border-radius: 50%; min-width: 7px; }
+  .task-dot.hi { background: var(--rose); }
+  .task-dot.lo { background: var(--silver); }
+
+  .scale-dots { display: flex; gap: 6px; justify-content: space-between; }
+  .scale-dot { flex: 1; height: 8px; border-radius: 999px; background: var(--card-strong); }
+  .scale-dot.on { background: var(--rose); }
+
+  .back-row { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; font-weight: 600; }
+  .back-row svg { width: 15px; height: 15px; }
+  html[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
+
+  .insight-icon-wrap {
+    width: 64px; height: 64px; border-radius: 50%; background: var(--rose-soft);
+    display: flex; align-items: center; justify-content: center; margin: 6px auto 0;
+  }
+  .insight-icon-wrap svg { width: 30px; height: 30px; color: var(--rose); }
+
+  .center-text { text-align: center; }
+
+  footer.note {
+    position: relative; z-index: 1;
+    text-align: center; padding: 0 32px 60px; color: var(--text-faint); font-size: 12px;
+  }
+
+  @media (max-width: 420px) {
+    .topbar { padding: 14px 16px; }
+    .intro { padding: 40px 18px 4px; }
+    .gallery { padding: 40px 16px 80px; gap: 44px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-decor">
+  <svg class="hex1" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><polygon points="200,20 360,110 360,290 200,380 40,290 40,110" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--page-decor)"/></svg>
+  <svg class="hex2" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><polygon points="200,20 360,110 360,290 200,380 40,290 40,110" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--page-decor)"/></svg>
+</div>
+
+<!-- ================= TOP BAR ================= -->
+<div class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="rgTop" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#7FA6D6"/><stop offset="50%" stop-color="#3E699E"/><stop offset="100%" stop-color="#1F3A5C"/>
+        </linearGradient>
+      </defs>
+      <polygon points="400,70 660,220 660,580 400,730 140,580 140,220" fill="none" stroke="#9C9CA3" stroke-width="10" opacity="0.5"/>
+      <path d="M 200 260 Q 400 780 600 260" fill="none" stroke="url(#rgTop)" stroke-width="60" stroke-linecap="round"/>
+    </svg>
+    <span class="brand-name">UNMET</span>
+  </div>
+  <div class="controls">
+    <div class="toggle-pill" id="themeToggle">
+      <button data-val="light" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>
+        <span data-i18n="modeLight">Light</span>
+      </button>
+      <button data-val="dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.7 6.7 0 0 0 10.5 10.5Z"/></svg>
+        <span data-i18n="modeDark">Dark</span>
+      </button>
+    </div>
+    <div class="toggle-pill" id="langToggle">
+      <button data-val="en" class="active">EN</button>
+      <button data-val="ar">AR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= INTRO ================= -->
+<div class="intro">
+  <div class="eyebrow" data-i18n="tagline">PRODUCT WIREFRAMES</div>
+  <h1 data-i18n="introHeading">Every screen, in your mode and your language</h1>
+  <p data-i18n="subtitle">Personalized habit-building, shown in light, dark, English and Arabic (right-to-left).</p>
+</div>
+
+<!-- ================= GALLERY ================= -->
+<div class="gallery">
+
+  <!-- SCREEN 1 — HOME -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div>
+          <div class="row between">
+            <div>
+              <div class="label-sm" id="greetLine" data-i18n="greetMorning">Good morning</div>
+              <div class="value-lg" id="greetName">Sarah</div>
+            </div>
+            <div class="icon-circle filled" id="greetIconWrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>
+            </div>
+          </div>
+          <div class="screen-subtitle" data-i18n="todayDate">Wednesday, September 10</div>
+        </div>
+
+        <div class="preview-row">
+          <div class="preview-pill active" data-period="Morning" data-i18n="previewMorning">Morning</div>
+          <div class="preview-pill" data-period="Afternoon" data-i18n="previewAfternoon">Afternoon</div>
+          <div class="preview-pill" data-period="Evening" data-i18n="previewEvening">Evening</div>
+        </div>
+
+        <div class="week-strip">
+          <div class="day-pill"><div class="d">S</div><div class="n">7</div></div>
+          <div class="day-pill"><div class="d">M</div><div class="n">8</div></div>
+          <div class="day-pill"><div class="d">T</div><div class="n">9</div></div>
+          <div class="day-pill today"><div class="d">W</div><div class="n">10<span class="dot"></span></div></div>
+          <div class="day-pill"><div class="d">T</div><div class="n">11</div></div>
+          <div class="day-pill"><div class="d">F</div><div class="n">12</div></div>
+          <div class="day-pill"><div class="d">S</div><div class="n">13</div></div>
+        </div>
+
+        <div>
+          <div class="row between" style="margin-bottom:8px;">
+            <span style="font-weight:700; font-size:13px;" data-i18n="todaysHabits">Today's habits</span>
+            <span class="chip rose">+ <span data-i18n="addHabit">Add</span></span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="card row" style="padding:10px 12px;">
+              <div class="icon-circle filled" style="width:26px;height:26px;min-width:26px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div class="grow">
+                <div style="font-size:12px; font-weight:700;" data-i18n="habit1">Morning reading</div>
+                <div style="font-size:10px; color:var(--text-muted);" data-i18n="habit1Stack">Stacked after: Wake up</div>
+              </div>
+              <div class="chip">12🔥</div>
+            </div>
+            <div class="card row" style="padding:10px 12px;">
+              <div class="icon-circle" style="width:26px;height:26px;min-width:26px; background:var(--card-strong); color:var(--text-faint);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/></svg>
+              </div>
+              <div class="grow">
+                <div style="font-size:12px; font-weight:700;" data-i18n="habit2">Stretch</div>
+                <div style="font-size:10px; color:var(--text-muted);" data-i18n="habit2Stack">Stacked after: Brush teeth</div>
+              </div>
+              <div class="chip">5🔥</div>
+            </div>
+            <div class="card row" style="padding:10px 12px;">
+              <div class="icon-circle" style="width:26px;height:26px;min-width:26px; background:var(--card-strong); color:var(--text-faint);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/></svg>
+              </div>
+              <div class="grow">
+                <div style="font-size:12px; font-weight:700;" data-i18n="habit3">Read 10 pages</div>
+                <div style="font-size:10px; color:var(--text-muted);" data-i18n="habit3Stack">Stacked after: Evening coffee</div>
+              </div>
+              <div class="chip">21🔥</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border:1px dashed var(--rose); background:var(--rose-soft);">
+          <div class="row between" style="margin-bottom:4px;">
+            <span style="font-size:11.5px; font-weight:700; color:var(--rose);" data-i18n="suggestedStackTitle">Suggested stack</span>
+          </div>
+          <div style="font-size:11px; color:var(--text); margin-bottom:9px;" data-i18n="suggestedStackBody">Add a 5-minute stretch right after your 6:00 PM gym session?</div>
+          <div class="row" style="gap:6px;">
+            <span class="chip dark-rose" style="flex:1; justify-content:center; padding:7px 0;" data-i18n="addBtn">Add</span>
+            <span class="chip" style="flex:1; justify-content:center; padding:7px 0;" data-i18n="notNow">Not now</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>
+          <span data-i18n="navHome">Home</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="M4 10h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+          <span data-i18n="navCalendar">Calendar</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.2h9.5A2.3 2.3 0 0 1 18 6.5v13.3H8A2 2 0 0 1 6 17.8Z"/><path d="M6 17.8V4.2"/></svg>
+          <span data-i18n="navJournal">Journal</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14M5 12h14M5 17.5h8"/><path d="M5 6.5 5 6.5"/></svg>
+          <span data-i18n="navTasks">Tasks</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V13M10 19V6M16 19V10M20 19h-16"/></svg>
+          <span data-i18n="navCheckin">Check-in</span>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">01</div>
+      <div class="name" data-i18n="screenHome">Home</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2 — MORNING JOURNAL -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div>
+          <h2 class="screen-title" data-i18n="morningTitle">Morning intention</h2>
+          <div class="screen-subtitle" data-i18n="morningSubtitle">60 seconds. Three priorities.</div>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted);" data-i18n="morningPrompt">What are your 3 priorities today?</div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card" style="display:flex; flex-direction:column; gap:8px;">
+            <div class="row" style="gap:8px;">
+              <div class="chip dark-rose" style="min-width:20px; justify-content:center;">1</div>
+              <input class="field grow" data-i18n-placeholder="priorityPlaceholder1" placeholder="Finish problem set 3">
+            </div>
+            <div class="row between">
+              <span class="chip rose" data-i18n="tagHigh">High</span>
+              <span class="label-sm" data-i18n="timeEstimate">Est. time</span>
+              <span class="chip">~45 min</span>
+            </div>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column; gap:8px;">
+            <div class="row" style="gap:8px;">
+              <div class="chip dark-rose" style="min-width:20px; justify-content:center;">2</div>
+              <input class="field grow" data-i18n-placeholder="priorityPlaceholder2" placeholder="Gym — leg day">
+            </div>
+            <div class="row between">
+              <span class="chip" data-i18n="tagMed">Medium</span>
+              <span class="label-sm" data-i18n="timeEstimate">Est. time</span>
+              <span class="chip">~60 min</span>
+            </div>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column; gap:8px;">
+            <div class="row" style="gap:8px;">
+              <div class="chip dark-rose" style="min-width:20px; justify-content:center;">3</div>
+              <input class="field grow" data-i18n-placeholder="priorityPlaceholder3" placeholder="Call mom">
+            </div>
+            <div class="row between">
+              <span class="chip" data-i18n="tagLow">Low</span>
+              <span class="label-sm" data-i18n="timeEstimate">Est. time</span>
+              <span class="chip">~15 min</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;"></div>
+        <button class="btn primary" data-i18n="startDay">Start my day</button>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>
+          <span data-i18n="navHome">Home</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="M4 10h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+          <span data-i18n="navCalendar">Calendar</span>
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.2h9.5A2.3 2.3 0 0 1 18 6.5v13.3H8A2 2 0 0 1 6 17.8Z"/><path d="M6 17.8V4.2"/></svg>
+          <span data-i18n="navJournal">Journal</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14M5 12h14M5 17.5h8"/></svg>
+          <span data-i18n="navTasks">Tasks</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V13M10 19V6M16 19V10M20 19h-16"/></svg>
+          <span data-i18n="navCheckin">Check-in</span>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">02</div>
+      <div class="name" data-i18n="screenMorning">Morning Journal</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3 — EVENING JOURNAL -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div>
+          <h2 class="screen-title" data-i18n="eveningTitle">Evening reflection</h2>
+          <div class="screen-subtitle" data-i18n="eveningSubtitle">60 seconds. Quick and honest.</div>
+        </div>
+
+        <div style="font-size:12px; color:var(--text-muted);" data-i18n="eveningPrompt">Did you complete today's priorities?</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div class="card row between" style="padding:10px 12px;">
+            <span style="font-size:12px; font-weight:600;" data-i18n="priorityPlaceholder1">Finish problem set 3</span>
+            <span class="chip dark-rose" data-i18n="done">Done</span>
+          </div>
+          <div class="card row between" style="padding:10px 12px;">
+            <span style="font-size:12px; font-weight:600;" data-i18n="priorityPlaceholder2">Gym — leg day</span>
+            <span class="chip dark-rose" data-i18n="done">Done</span>
+          </div>
+          <div class="card row between" style="padding:10px 12px; opacity:.7;">
+            <span style="font-size:12px; font-weight:600;" data-i18n="priorityPlaceholder3">Call mom</span>
+            <span class="chip" data-i18n="missed">Missed</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;" data-i18n="obstaclePrompt">What got in the way?</div>
+          <textarea class="field" rows="2" data-i18n-placeholder="obstaclePlaceholder" placeholder="e.g. ran out of time after class"></textarea>
+        </div>
+
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;" data-i18n="feelingPrompt">How did today feel?</div>
+          <div class="scale-dots">
+            <div class="scale-dot"></div><div class="scale-dot"></div><div class="scale-dot on"></div><div class="scale-dot"></div><div class="scale-dot"></div>
+          </div>
+        </div>
+
+        <div style="flex:1;"></div>
+        <button class="btn primary" data-i18n="logDay">Log my day</button>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>
+          <span data-i18n="navHome">Home</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="M4 10h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+          <span data-i18n="navCalendar">Calendar</span>
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.2h9.5A2.3 2.3 0 0 1 18 6.5v13.3H8A2 2 0 0 1 6 17.8Z"/><path d="M6 17.8V4.2"/></svg>
+          <span data-i18n="navJournal">Journal</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14M5 12h14M5 17.5h8"/></svg>
+          <span data-i18n="navTasks">Tasks</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V13M10 19V6M16 19V10M20 19h-16"/></svg>
+          <span data-i18n="navCheckin">Check-in</span>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">03</div>
+      <div class="name" data-i18n="screenEvening">Evening Journal</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 4 — FREE-FORM JOURNAL -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div>
+          <h2 class="screen-title" data-i18n="freeformTitle">Free-form journal</h2>
+          <div class="screen-subtitle" data-i18n="freeformSubtitle">Brain dump everything you want to achieve</div>
+        </div>
+
+        <div class="toggle-pill" id="freeformTabs" style="align-self:flex-start;">
+          <button data-val="write" class="active" data-i18n="writeTab">Write</button>
+          <button data-val="plan" data-i18n="planTab">AI Plan</button>
+        </div>
+
+        <div id="freeformWrite" style="display:flex; flex-direction:column; gap:12px; flex:1;">
+          <textarea class="field grow" style="flex:1; min-height:170px;" data-i18n-placeholder="brainDumpPlaceholder" placeholder="I want to get better at running, learn Spanish, finish my thesis by December, read more, and stop putting off my job applications..."></textarea>
+          <button class="btn primary" style="gap:8px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3.5M12 17.5V21M3 12h3.5M17.5 12H21M5.6 5.6l2.5 2.5M15.9 15.9l2.5 2.5M18.4 5.6l-2.5 2.5M8.1 15.9l-2.5 2.5"/></svg>
+            <span data-i18n="turnIntoPlan">Turn into a plan</span>
+          </button>
+        </div>
+
+        <div id="freeformPlan" style="display:none; flex-direction:column; gap:9px; flex:1;">
+          <div class="row" style="gap:6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--rose);"><path d="M12 3v3.5M12 17.5V21M3 12h3.5M17.5 12H21M5.6 5.6l2.5 2.5M15.9 15.9l2.5 2.5M18.4 5.6l-2.5 2.5M8.1 15.9l-2.5 2.5"/></svg>
+            <span class="label-sm" data-i18n="aiPlanHeading" style="color:var(--rose);">Pulled from your journal</span>
+          </div>
+
+          <div class="card">
+            <div class="row between" style="margin-bottom:5px;">
+              <span style="font-size:12px; font-weight:700;" data-i18n="planGoal1">Learn Spanish</span>
+              <span class="chip rose" data-i18n="tagLow">Low</span>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-muted);" data-i18n="planGoal1Step">10 min/day on Duolingo · stacked after evening coffee</div>
+          </div>
+
+          <div class="card">
+            <div class="row between" style="margin-bottom:5px;">
+              <span style="font-size:12px; font-weight:700;" data-i18n="planGoal2">Finish thesis by Dec</span>
+              <span class="chip rose" data-i18n="tagHigh">High</span>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-muted);" data-i18n="planGoal2Step">2-hr blocks added Tue &amp; Thu · synced to calendar</div>
+          </div>
+
+          <div class="card">
+            <div class="row between" style="margin-bottom:5px;">
+              <span style="font-size:12px; font-weight:700;" data-i18n="planGoal3">Job applications</span>
+              <span class="chip dark-rose" data-i18n="doNow">Do now</span>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-muted);" data-i18n="planGoal3Step">Sent to Task Splitter · 5 sub-steps ready</div>
+          </div>
+
+          <div style="flex:1;"></div>
+          <button class="btn secondary" data-i18n="editPlan">Edit in Task Splitter</button>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>
+          <span data-i18n="navHome">Home</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="M4 10h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+          <span data-i18n="navCalendar">Calendar</span>
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.2h9.5A2.3 2.3 0 0 1 18 6.5v13.3H8A2 2 0 0 1 6 17.8Z"/><path d="M6 17.8V4.2"/></svg>
+          <span data-i18n="navJournal">Journal</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14M5 12h14M5 17.5h8"/></svg>
+          <span data-i18n="navTasks">Tasks</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V13M10 19V6M16 19V10M20 19h-16"/></svg>
+          <span data-i18n="navCheckin">Check-in</span>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">04</div>
+      <div class="name" data-i18n="screenFreeform">Free-form Journal</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 5 — CALENDAR & HABIT STACKING -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div>
+          <h2 class="screen-title" data-i18n="calendarTitle">Calendar & habit stacking</h2>
+          <div class="screen-subtitle" data-i18n="calendarSubtitle">Synced to your real schedule</div>
+        </div>
+
+        <div class="row" style="gap:14px;">
+          <div class="row" style="gap:5px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--card-strong);display:inline-block;"></span><span class="label-sm" data-i18n="legendCalendar">Calendar event</span></div>
+          <div class="row" style="gap:5px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--rose-soft);border:1px dashed var(--rose);display:inline-block;"></span><span class="label-sm" data-i18n="legendHabit">Suggested habit</span></div>
+        </div>
+
+        <div class="timeline">
+          <div class="tl-row">
+            <div class="tl-time">9:00</div>
+            <div class="tl-block event">
+              <div data-i18n="calClass">Class — Calculus II</div>
+              <div class="sub">9:00 – 11:00</div>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">3:00</div>
+            <div class="tl-block event">
+              <div data-i18n="calStudy">Study block</div>
+              <div class="sub">3:00 – 4:00</div>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">6:00</div>
+            <div class="tl-block event">
+              <div data-i18n="calGym">Gym</div>
+              <div class="sub">6:00 – 7:00</div>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">7:00</div>
+            <div class="tl-block suggest">
+              <div data-i18n="calSuggested">+ Stretch · 10 min</div>
+              <div class="sub" data-i18n="freeSlot">Free slot</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;"></div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>
+          <span data-i18n="navHome">Home</span>
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="M4 10h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+          <span data-i18n="navCalendar">Calendar</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.2h9.5A2.3 2.3 0 0 1 18 6.5v13.3H8A2 2 0 0 1 6 17.8Z"/><path d="M6 17.8V4.2"/></svg>
+          <span data-i18n="navJournal">Journal</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14M5 12h14M5 17.5h8"/></svg>
+          <span data-i18n="navTasks">Tasks</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V13M10 19V6M16 19V10M20 19h-16"/></svg>
+          <span data-i18n="navCheckin">Check-in</span>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">05</div>
+      <div class="name" data-i18n="screenCalendar">Calendar & Stacking</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 5 — WEEKLY CEO CHECK-IN -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div>
+          <h2 class="screen-title" data-i18n="checkinTitle">Weekly review</h2>
+          <div class="screen-subtitle" data-i18n="checkinSubtitle">Sept 4 – Sept 10</div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="label-sm" data-i18n="statStudy">Study hours</div>
+            <div class="value-lg">12.5<span style="font-size:11px; color:var(--text-muted); font-weight:600;">/15h</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="label-sm" data-i18n="statGym">Gym sessions</div>
+            <div class="value-lg">3<span style="font-size:11px; color:var(--text-muted); font-weight:600;">/4</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="label-sm" data-i18n="statDiet">Diet adherence</div>
+            <div class="value-lg">71%</div>
+          </div>
+          <div class="stat-card">
+            <div class="label-sm" data-i18n="statLang">Language streak</div>
+            <div class="value-lg">5<span style="font-size:11px; color:var(--text-muted); font-weight:600;">d</span></div>
+          </div>
+        </div>
+
+        <div class="card on-rose">
+          <div class="row" style="gap:7px; margin-bottom:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg>
+            <span style="font-size:11.5px; font-weight:700;" data-i18n="insightTitle">This week's insight</span>
+          </div>
+          <div style="font-size:12px; line-height:1.5; margin-bottom:10px;" data-i18n="insightBody">You've missed your 3:00 PM study block 4 Tuesdays in a row.</div>
+          <span class="chip" style="background:rgba(255,255,255,0.9); color:var(--rose); justify-content:center; width:100%; padding:7px 0;" data-i18n="insightCta">Let's fix it</span>
+        </div>
+
+        <div style="flex:1;"></div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>
+          <span data-i18n="navHome">Home</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="M4 10h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+          <span data-i18n="navCalendar">Calendar</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.2h9.5A2.3 2.3 0 0 1 18 6.5v13.3H8A2 2 0 0 1 6 17.8Z"/><path d="M6 17.8V4.2"/></svg>
+          <span data-i18n="navJournal">Journal</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14M5 12h14M5 17.5h8"/></svg>
+          <span data-i18n="navTasks">Tasks</span>
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V13M10 19V6M16 19V10M20 19h-16"/></svg>
+          <span data-i18n="navCheckin">Check-in</span>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">06</div>
+      <div class="name" data-i18n="screenCheckin">Weekly CEO Check-in</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 6 — PROCRASTINATION BREAKER -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div>
+          <h2 class="screen-title" data-i18n="tasksTitle">Task splitter</h2>
+          <div class="screen-subtitle" data-i18n="tasksSubtitle">Turn vague goals into your next step</div>
+        </div>
+
+        <div class="card strong">
+          <div class="label-sm" data-i18n="bigTaskLabel" style="margin-bottom:4px;">Your goal</div>
+          <div class="row between">
+            <span style="font-weight:700; font-size:13px;" data-i18n="bigTask">Improve my GPA</span>
+            <span class="chip dark-rose" data-i18n="breakDown">Break it down</span>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <div class="task-row card" style="padding:8px 10px;">
+            <span class="task-dot hi"></span>
+            <span class="grow" style="font-size:11px;" data-i18n="subtask1">Review lecture 4 notes</span>
+            <span class="chip rose" style="font-size:9px; padding:3px 7px;" data-i18n="doNow">Do now</span>
+          </div>
+          <div class="task-row card" style="padding:8px 10px;">
+            <span class="task-dot hi"></span>
+            <span class="grow" style="font-size:11px;" data-i18n="subtask2">Finish problem set 3</span>
+            <span class="chip rose" style="font-size:9px; padding:3px 7px;" data-i18n="doNow">Do now</span>
+          </div>
+          <div class="task-row card" style="padding:8px 10px;">
+            <span class="task-dot lo"></span>
+            <span class="grow" style="font-size:11px;" data-i18n="subtask3">Email professor about grade</span>
+            <span class="chip" style="font-size:9px; padding:3px 7px;" data-i18n="schedule">Schedule</span>
+          </div>
+          <div class="task-row card" style="padding:8px 10px;">
+            <span class="task-dot lo"></span>
+            <span class="grow" style="font-size:11px;" data-i18n="subtask4">Book library study room</span>
+            <span class="chip" style="font-size:9px; padding:3px 7px;" data-i18n="quickWin">Quick win</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="label-sm" style="margin-bottom:6px;" data-i18n="matrixTitle">Importance × urgency</div>
+          <div class="matrix-mini">
+            <div class="mrow">
+              <div class="mcell lo" data-i18n="schedule">Schedule</div>
+              <div class="mcell hi" data-i18n="doNow">Do now</div>
+            </div>
+            <div class="mrow">
+              <div class="mcell lo" data-i18n="dropLater">Drop / later</div>
+              <div class="mcell lo" data-i18n="quickWin">Quick win</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;"></div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>
+          <span data-i18n="navHome">Home</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="M4 10h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+          <span data-i18n="navCalendar">Calendar</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.2h9.5A2.3 2.3 0 0 1 18 6.5v13.3H8A2 2 0 0 1 6 17.8Z"/><path d="M6 17.8V4.2"/></svg>
+          <span data-i18n="navJournal">Journal</span>
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6.5h14M5 12h14M5 17.5h8"/></svg>
+          <span data-i18n="navTasks">Tasks</span>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V13M10 19V6M16 19V10M20 19h-16"/></svg>
+          <span data-i18n="navCheckin">Check-in</span>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">07</div>
+      <div class="name" data-i18n="screenTasks">Procrastination Breaker</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 7 — PATTERN INSIGHT -->
+  <div class="screen-block">
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="back-row">
+          <svg class="flip-rtl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+          <span data-i18n="back">Back</span>
+        </div>
+
+        <div class="insight-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg>
+        </div>
+
+        <div class="center-text">
+          <h2 class="screen-title" data-i18n="insightScreenTitle">Pattern detected</h2>
+        </div>
+        <div class="card center-text" style="font-size:12.5px; line-height:1.6;" data-i18n="insightScreenBody">
+          You've missed your 3:00 PM study block 4 Tuesdays in a row.
+        </div>
+
+        <div class="card strong">
+          <div class="label-sm" data-i18n="nextStepLabel" style="margin-bottom:5px;">Smallest next step</div>
+          <div style="font-size:12.5px; font-weight:700;" data-i18n="nextStep">Just open your notes for 5 minutes.</div>
+        </div>
+
+        <div style="flex:1;"></div>
+        <button class="btn primary" data-i18n="gotIt">Got it, let's fix it</button>
+        <button class="btn secondary" data-i18n="adjustSchedule">Adjust my schedule</button>
+      </div>
+    </div>
+    <div class="screen-label">
+      <div class="num">08</div>
+      <div class="name" data-i18n="screenInsight">Pattern Insight</div>
+    </div>
+  </div>
+
+</div>
+
+<footer class="note" data-i18n="footerNote">Low-fidelity wireframes — no login or payment screens included yet, by request.</footer>
+
+<script>
+const translations = {
+  en: {
+    tagline: "PRODUCT WIREFRAMES",
+    introHeading: "Every screen, in your mode and your language",
+    subtitle: "Personalized habit-building, shown in light, dark, English and Arabic (right-to-left).",
+    greetMorning: "Good morning",
+    greetAfternoon: "Good afternoon",
+    greetEvening: "Good evening",
+    userName: "Sarah",
+    todayDate: "Wednesday, September 10",
+    previewMorning: "Morning",
+    previewAfternoon: "Afternoon",
+    previewEvening: "Evening",
+    todaysHabits: "Today's habits",
+    addHabit: "Add",
+    stackedAfter: "Stacked after",
+    suggestedStackTitle: "Suggested stack",
+    suggestedStackBody: "Add a 5-minute stretch right after your 6:00 PM gym session?",
+    addBtn: "Add",
+    notNow: "Not now",
+    habit1: "Morning reading",
+    habit1Stack: "Stacked after: Wake up",
+    habit2: "Stretch",
+    habit2Stack: "Stacked after: Brush teeth",
+    habit3: "Read 10 pages",
+    habit3Stack: "Stacked after: Evening coffee",
+    navHome: "Home",
+    navCalendar: "Calendar",
+    navJournal: "Journal",
+    navTasks: "Tasks",
+    navCheckin: "Check-in",
+    freeformTitle: "Free-form journal",
+    freeformSubtitle: "Brain dump everything you want to achieve",
+    writeTab: "Write",
+    planTab: "AI Plan",
+    brainDumpPlaceholder: "I want to get better at running, learn Spanish, finish my thesis by December, read more, and stop putting off my job applications...",
+    turnIntoPlan: "Turn into a plan",
+    aiPlanHeading: "Pulled from your journal",
+    planGoal1: "Learn Spanish",
+    planGoal1Step: "10 min/day on Duolingo · stacked after evening coffee",
+    planGoal2: "Finish thesis by Dec",
+    planGoal2Step: "2-hr blocks added Tue & Thu · synced to calendar",
+    planGoal3: "Job applications",
+    planGoal3Step: "Sent to Task Splitter · 5 sub-steps ready",
+    editPlan: "Edit in Task Splitter",
+    screenFreeform: "Free-form Journal",
+    morningTitle: "Morning intention",
+    morningSubtitle: "60 seconds. Three priorities.",
+    morningPrompt: "What are your 3 priorities today?",
+    priorityPlaceholder1: "Finish problem set 3",
+    priorityPlaceholder2: "Gym — leg day",
+    priorityPlaceholder3: "Call mom",
+    timeEstimate: "Est. time",
+    tagHigh: "High",
+    tagMed: "Medium",
+    tagLow: "Low",
+    startDay: "Start my day",
+    eveningTitle: "Evening reflection",
+    eveningSubtitle: "60 seconds. Quick and honest.",
+    eveningPrompt: "Did you complete today's priorities?",
+    obstaclePrompt: "What got in the way?",
+    obstaclePlaceholder: "e.g. ran out of time after class",
+    feelingPrompt: "How did today feel?",
+    logDay: "Log my day",
+    done: "Done",
+    missed: "Missed",
+    calendarTitle: "Calendar & habit stacking",
+    calendarSubtitle: "Synced to your real schedule",
+    legendCalendar: "Calendar event",
+    legendHabit: "Suggested habit",
+    freeSlot: "Free slot",
+    calClass: "Class — Calculus II",
+    calGym: "Gym",
+    calSuggested: "+ Stretch · 10 min",
+    calStudy: "Study block",
+    checkinTitle: "Weekly review",
+    checkinSubtitle: "Sept 4 – Sept 10",
+    statStudy: "Study hours",
+    statGym: "Gym sessions",
+    statDiet: "Diet adherence",
+    statLang: "Language streak",
+    insightTitle: "This week's insight",
+    insightBody: "You've missed your 3:00 PM study block 4 Tuesdays in a row.",
+    insightCta: "Let's fix it",
+    tasksTitle: "Task splitter",
+    tasksSubtitle: "Turn vague goals into your next step",
+    bigTaskLabel: "Your goal",
+    bigTask: "Improve my GPA",
+    breakDown: "Break it down",
+    subtask1: "Review lecture 4 notes",
+    subtask2: "Finish problem set 3",
+    subtask3: "Email professor about grade",
+    subtask4: "Book library study room",
+    matrixTitle: "Importance × urgency",
+    doNow: "Do now",
+    schedule: "Schedule",
+    quickWin: "Quick win",
+    dropLater: "Drop / later",
+    insightScreenTitle: "Pattern detected",
+    insightScreenBody: "You've missed your 3:00 PM study block 4 Tuesdays in a row.",
+    nextStepLabel: "Smallest next step",
+    nextStep: "Just open your notes for 5 minutes.",
+    adjustSchedule: "Adjust my schedule",
+    gotIt: "Got it, let's fix it",
+    back: "Back",
+    screenHome: "Home",
+    screenMorning: "Morning Journal",
+    screenEvening: "Evening Journal",
+    screenCalendar: "Calendar & Stacking",
+    screenCheckin: "Weekly CEO Check-in",
+    screenTasks: "Procrastination Breaker",
+    screenInsight: "Pattern Insight",
+    modeLight: "Light",
+    modeDark: "Dark",
+    footerNote: "Low-fidelity wireframes — no login or payment screens included yet, by request."
+  },
+  ar: {
+    tagline: "نماذج أولية للتطبيق",
+    introHeading: "كل شاشة، بوضعك ولغتك",
+    subtitle: "بناء عادات مخصّص، معروض بالوضعين الفاتح والداكن، بالإنجليزية والعربية (من اليمين لليسار).",
+    greetMorning: "صباح الخير",
+    greetAfternoon: "طاب يومك",
+    greetEvening: "مساء الخير",
+    userName: "سارة",
+    todayDate: "الأربعاء، 10 سبتمبر",
+    previewMorning: "صباحًا",
+    previewAfternoon: "ظهرًا",
+    previewEvening: "مساءً",
+    todaysHabits: "عادات اليوم",
+    addHabit: "إضافة",
+    stackedAfter: "مرتبطة بعد",
+    suggestedStackTitle: "اقتراح ربط عادة",
+    suggestedStackBody: "أضف تمددًا لمدة 5 دقائق بعد حصة الجيم الساعة 6:00 مساءً؟",
+    addBtn: "إضافة",
+    notNow: "ليس الآن",
+    habit1: "قراءة الصباح",
+    habit1Stack: "مرتبطة بعد: الاستيقاظ",
+    habit2: "تمدد",
+    habit2Stack: "مرتبطة بعد: تنظيف الأسنان",
+    habit3: "قراءة 10 صفحات",
+    habit3Stack: "مرتبطة بعد: قهوة المساء",
+    navHome: "الرئيسية",
+    navCalendar: "التقويم",
+    navJournal: "اليوميات",
+    navTasks: "المهام",
+    navCheckin: "المراجعة",
+    freeformTitle: "يوميات حرة",
+    freeformSubtitle: "فرّغ كل ما تريد تحقيقه دون ترتيب",
+    writeTab: "اكتب",
+    planTab: "خطة الذكاء الاصطناعي",
+    brainDumpPlaceholder: "أريد تحسين مستواي في الجري، وتعلّم الإسبانية، وإنهاء أطروحتي بحلول ديسمبر، والقراءة أكثر، والتوقف عن تأجيل طلبات التوظيف...",
+    turnIntoPlan: "حوّلها إلى خطة",
+    aiPlanHeading: "مستخرجة من يومياتك",
+    planGoal1: "تعلّم الإسبانية",
+    planGoal1Step: "10 دقائق يوميًا على Duolingo · مرتبطة بعد قهوة المساء",
+    planGoal2: "إنهاء الأطروحة بحلول ديسمبر",
+    planGoal2Step: "حصص ساعتين أيام الثلاثاء والخميس · مضافة للتقويم",
+    planGoal3: "طلبات التوظيف",
+    planGoal3Step: "أُرسلت إلى مقسّم المهام · 5 خطوات فرعية جاهزة",
+    editPlan: "تعديلها في مقسّم المهام",
+    screenFreeform: "يوميات حرة",
+    morningTitle: "نية الصباح",
+    morningSubtitle: "60 ثانية. ثلاث أولويات.",
+    morningPrompt: "ما هي أولوياتك الثلاث اليوم؟",
+    priorityPlaceholder1: "إنهاء الواجب 3",
+    priorityPlaceholder2: "الجيم — يوم الأرجل",
+    priorityPlaceholder3: "الاتصال بأمي",
+    timeEstimate: "الوقت المقدّر",
+    tagHigh: "عالية",
+    tagMed: "متوسطة",
+    tagLow: "منخفضة",
+    startDay: "ابدأ يومي",
+    eveningTitle: "تأمل المساء",
+    eveningSubtitle: "60 ثانية. سريع وصادق.",
+    eveningPrompt: "هل أنجزت أولويات اليوم؟",
+    obstaclePrompt: "ما الذي أعاقك؟",
+    obstaclePlaceholder: "مثال: نفد الوقت بعد المحاضرة",
+    feelingPrompt: "كيف كان شعورك اليوم؟",
+    logDay: "سجّل يومي",
+    done: "أُنجزت",
+    missed: "فاتت",
+    calendarTitle: "التقويم وربط العادات",
+    calendarSubtitle: "متزامن مع جدولك الفعلي",
+    legendCalendar: "حدث في التقويم",
+    legendHabit: "عادة مقترحة",
+    freeSlot: "وقت فارغ",
+    calClass: "محاضرة — تفاضل وتكامل 2",
+    calGym: "الجيم",
+    calSuggested: "+ تمدد · 10 دقائق",
+    calStudy: "فترة الدراسة",
+    checkinTitle: "المراجعة الأسبوعية",
+    checkinSubtitle: "4 – 10 سبتمبر",
+    statStudy: "ساعات الدراسة",
+    statGym: "حصص الرياضة",
+    statDiet: "الالتزام الغذائي",
+    statLang: "تتابع تعلم اللغة",
+    insightTitle: "ملاحظة هذا الأسبوع",
+    insightBody: "فوّتّ فترة الدراسة الساعة 3:00 عصرًا لأربعة ثلاثاءات متتالية.",
+    insightCta: "لنصلح ذلك",
+    tasksTitle: "مقسّم المهام",
+    tasksSubtitle: "حوّل الأهداف الغامضة إلى خطوتك التالية",
+    bigTaskLabel: "هدفك",
+    bigTask: "تحسين معدلي التراكمي",
+    breakDown: "قسّمها",
+    subtask1: "مراجعة ملاحظات المحاضرة 4",
+    subtask2: "إنهاء الواجب 3",
+    subtask3: "مراسلة الأستاذ بخصوص الدرجة",
+    subtask4: "حجز قاعة دراسة بالمكتبة",
+    matrixTitle: "الأهمية × الإلحاح",
+    doNow: "افعلها الآن",
+    schedule: "جدولها",
+    quickWin: "إنجاز سريع",
+    dropLater: "أجّلها / تجاهلها",
+    insightScreenTitle: "تم رصد نمط",
+    insightScreenBody: "فوّتّ فترة الدراسة الساعة 3:00 عصرًا لأربعة ثلاثاءات متتالية.",
+    nextStepLabel: "أصغر خطوة تالية",
+    nextStep: "فقط افتح ملاحظاتك لمدة 5 دقائق.",
+    adjustSchedule: "تعديل جدولي",
+    gotIt: "حسنًا، لنصلح ذلك",
+    back: "رجوع",
+    screenHome: "الرئيسية",
+    screenMorning: "يوميات الصباح",
+    screenEvening: "يوميات المساء",
+    screenCalendar: "التقويم والربط",
+    screenCheckin: "المراجعة الأسبوعية",
+    screenTasks: "كاسر التسويف",
+    screenInsight: "ملاحظة النمط",
+    modeLight: "فاتح",
+    modeDark: "داكن",
+    footerNote: "نماذج أولية منخفضة الدقة — دون شاشتي تسجيل الدخول أو الدفع حتى الآن، بناءً على الطلب."
+  }
+};
+
+let currentLang = 'en';
+let currentTheme = 'light';
+let currentPeriod = 'Morning';
+
+const greetIcons = {
+  Morning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>',
+  Afternoon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="13" r="4"/><path d="M15 8.5a4 4 0 1 1 1.2 7.8H8"/></svg>',
+  Evening: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.7 6.7 0 0 0 10.5 10.5Z"/></svg>'
+};
+
+function applyAll() {
+  const dict = translations[currentLang];
+  document.documentElement.lang = currentLang;
+  document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+  document.documentElement.setAttribute('data-lang', currentLang);
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (dict[key] !== undefined) el.placeholder = dict[key];
+  });
+
+  document.getElementById('greetName').textContent = dict.userName;
+  updateGreeting();
+
+  document.querySelectorAll('#langToggle button').forEach(b => b.classList.toggle('active', b.dataset.val === currentLang));
+  document.querySelectorAll('#themeToggle button').forEach(b => b.classList.toggle('active', b.dataset.val === currentTheme));
+}
+
+function updateGreeting() {
+  const dict = translations[currentLang];
+  const key = 'greet' + currentPeriod;
+  document.getElementById('greetLine').textContent = dict[key];
+  document.getElementById('greetIconWrap').innerHTML = greetIcons[currentPeriod];
+  document.querySelectorAll('.preview-pill').forEach(p => p.classList.toggle('active', p.dataset.period === currentPeriod));
+}
+
+document.getElementById('themeToggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  currentTheme = btn.dataset.val;
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  applyAll();
+});
+
+document.getElementById('langToggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  currentLang = btn.dataset.val;
+  applyAll();
+});
+
+const freeformTabs = document.getElementById('freeformTabs');
+if (freeformTabs) {
+  freeformTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    freeformTabs.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    const isPlan = btn.dataset.val === 'plan';
+    document.getElementById('freeformWrite').style.display = isPlan ? 'none' : 'flex';
+    document.getElementById('freeformPlan').style.display = isPlan ? 'flex' : 'none';
+  });
+}
+
+document.querySelectorAll('.preview-pill').forEach(p => {
+  p.addEventListener('click', () => {
+    currentPeriod = p.dataset.period;
+    updateGreeting();
+  });
+});
+
+// set initial greeting based on real local time
+(function initPeriod() {
+  const h = new Date().getHours();
+  currentPeriod = h < 12 ? 'Morning' : (h < 18 ? 'Afternoon' : 'Evening');
+})();
+
+applyAll();
+</script>
+</body>
+</html>

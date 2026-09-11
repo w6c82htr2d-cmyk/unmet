@@ -9,6 +9,7 @@ let activeTab = 'write';
 let draftText = '';
 let generating = false;
 let currentEntry = null;
+let planError = null;
 
 export function renderFreeform(root) {
   const entries = getFreeformEntries();
@@ -57,6 +58,7 @@ function renderTabContent(root) {
         <button class="btn primary" id="planBtn" ${generating ? 'disabled' : ''}>
           ${icon.sparkle} ${generating ? t('generatingPlan') : t('turnIntoPlan')}
         </button>
+        ${planError ? `<div class="label-sm" style="color:var(--danger);">${escapeHtml(planError)}</div>` : ''}
       </div>
     `;
     const textarea = container.querySelector('#brainDump');
@@ -65,15 +67,23 @@ function renderTabContent(root) {
       const text = textarea.value.trim();
       if (!text) return;
       generating = true;
+      planError = null;
       renderTabContent(root);
-      currentEntry = addFreeformEntry(text);
-      const plan = await planFromJournal(text);
-      setFreeformPlan(currentEntry.id, plan);
-      currentEntry.plan = plan;
-      generating = false;
-      draftText = '';
-      activeTab = 'plan';
-      renderFreeform(root);
+      try {
+        const entry = addFreeformEntry(text);
+        const plan = await planFromJournal(text);
+        setFreeformPlan(entry.id, plan);
+        entry.plan = plan;
+        currentEntry = entry;
+        generating = false;
+        draftText = '';
+        activeTab = 'plan';
+        renderFreeform(root);
+      } catch {
+        planError = t('planErrorNotice');
+        generating = false;
+        renderTabContent(root);
+      }
     });
     return;
   }

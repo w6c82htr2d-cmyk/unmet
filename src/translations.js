@@ -108,6 +108,7 @@ export const translations = {
     noEntryYetTitle: "Nothing written yet",
     noEntryYetBody: "Write freely about everything you want to achieve, then turn it into a plan.",
     savedEntries: "Past entries",
+    planErrorNotice: "AI planning is temporarily unavailable. Please try again in a moment.",
 
     calendarTitle: "Calendar & habit stacking",
     calendarSubtitle: "Synced to your real schedule",
@@ -293,6 +294,7 @@ export const translations = {
     noEntryYetTitle: "لم تكتب شيئًا بعد",
     noEntryYetBody: "اكتب بحرية عن كل ما تريد تحقيقه، ثم حوّله إلى خطة.",
     savedEntries: "مدخلات سابقة",
+    planErrorNotice: "ميزة التخطيط بالذكاء الاصطناعي غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.",
 
     calendarTitle: "التقويم وربط العادات",
     calendarSubtitle: "متزامن مع جدولك الفعلي",

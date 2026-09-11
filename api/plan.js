@@ -75,9 +75,11 @@ export default async function handler(req, res) {
       return;
     }
 
+    const cleaned = textBlock.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+
     let parsed;
     try {
-      parsed = JSON.parse(textBlock.text);
+      parsed = JSON.parse(cleaned);
     } catch {
       res.status(502).json({ error: 'Model did not return valid JSON', raw: textBlock.text });
       return;

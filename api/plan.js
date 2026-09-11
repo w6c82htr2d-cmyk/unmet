@@ -10,9 +10,10 @@
 // Nothing else needs to change — the rest of the app already calls
 // planFromJournal() and only cares about the { goals: [...] } shape below.
 //
-// Model choice: defaults to claude-opus-5 (Anthropic's current recommended
-// default). This is a small, cheap extraction task, so swapping the model
-// string below to "claude-haiku-4-5" will work fine and cost less — your call.
+// Model choice: uses claude-haiku-4-5, Anthropic's cheapest current model
+// (~5x cheaper than the flagship Opus tier) — plenty capable for this small
+// extraction task. Swap the model string below to "claude-opus-5" if you
+// ever want higher-quality plans at a higher per-use cost.
 
 const SYSTEM_PROMPT = `You turn a person's free-form journal entry about things they want to achieve into a structured plan.
 
@@ -54,9 +55,8 @@ export default async function handler(req, res) {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-opus-5',
-        max_tokens: 2048,
-        output_config: { effort: 'low' },
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: text.slice(0, 4000) }],
       }),

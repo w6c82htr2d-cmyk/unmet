@@ -1,13 +1,10 @@
 // AI planning feature: turns a free-form journal entry into a structured plan.
 //
-// USE_STUB toggles between the local heuristic (no API key needed, works today)
-// and a real call to /api/plan (a serverless function that talks to the
-// Anthropic API). Once you have your Anthropic API key, add it as the
-// ANTHROPIC_API_KEY environment variable on your host, implement /api/plan.js
-// (a starting point is already in /api/plan.js in this repo), and flip
-// USE_STUB to false. No other file needs to change — every page calls
-// planFromJournal() and only cares about the returned shape below.
-const USE_STUB = true;
+// USE_STUB toggles between the local heuristic (no API key needed) and a
+// real call to /api/plan (a serverless function that talks to the
+// Anthropic API, using the ANTHROPIC_API_KEY environment variable on the
+// host). Now false: the app calls the real API.
+const USE_STUB = false;
 
 const HABIT_WORDS = ['learn', 'read', 'practice', 'daily', 'everyday', 'every day', 'meditate', 'exercise', 'run', 'running', 'gym', 'stretch', 'journal', 'sleep', 'workout', 'walk'];
 const DEADLINE_WORDS = ['by december', 'by january', 'by february', 'by march', 'by april', 'by may', 'by june', 'by july', 'by august', 'by september', 'by october', 'by november', 'deadline', 'due', 'asap', 'this week', 'this month', 'finish', 'complete', 'submit'];

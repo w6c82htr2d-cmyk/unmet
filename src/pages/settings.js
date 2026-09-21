@@ -3,6 +3,10 @@ import { getTheme, setTheme } from '../theme.js';
 import { getProfile, saveProfile, exportAll, importAll, resetAll } from '../db.js';
 import { icon } from '../icons.js';
 import { navigate } from '../router.js';
+import { generateCode, getSavedCode, saveCodeLocally, forgetCodeLocally, pushToCode, pullFromCode } from '../lib/sync.js';
+
+let syncStatus = '';
+let syncBusy = false;
 
 const GOAL_TRACKS = [
   { id: 'gpa', label: 'goalGPA', icon: 'bookGoal' },
@@ -61,6 +65,8 @@ export function renderSettings(root) {
         <input type="file" id="importFile" accept="application/json" style="display:none" />
         <button class="btn secondary" id="resetBtn" style="color:var(--danger);">${t('resetData')}</button>
       </div>
+
+      ${syncSectionHtml()}
 
       <button class="btn secondary" id="helpLink">${icon.help} ${t('openHelp')}</button>
 
@@ -135,6 +141,151 @@ export function renderSettings(root) {
       location.reload();
     }
   });
+
+  wireSyncSection(root);
+}
+
+function syncSectionHtml() {
+  const code = getSavedCode();
+  return `
+    <div class="card col">
+      <label class="label-sm">${icon.sync} ${t('syncHeading')}</label>
+      <div style="font-size:11.5px; color:var(--text-muted);">${t('syncIntro')}</div>
+
+      ${code ? `
+        <div class="row between" style="background:var(--card-strong); border-radius:10px; padding:10px 12px;">
+          <div>
+            <div class="label-sm">${t('yourSyncCode')}</div>
+            <div style="font-family:monospace; font-size:16px; font-weight:700; letter-spacing:2px;">${escapeAttr(code)}</div>
+          </div>
+          <button class="chip clickable" id="copyCodeBtn">${icon.copy} ${t('copyCode')}</button>
+        </div>
+        <button class="btn secondary" id="pushBtn" ${syncBusy ? 'disabled' : ''}>${t('pushNowBtn')}</button>
+        <button class="btn secondary" id="pullBtn" ${syncBusy ? 'disabled' : ''}>${t('pullLatestBtn')}</button>
+        <button class="btn ghost" id="stopSyncBtn">${t('stopSyncBtn')}</button>
+      ` : `
+        <button class="btn secondary" id="getCodeBtn" ${syncBusy ? 'disabled' : ''}>${t('getCodeBtn')}</button>
+        <label class="label-sm" style="margin-top:6px;">${t('haveCodeLabel')}</label>
+        <div class="row" style="gap:8px;">
+          <input class="field grow" id="enterCodeInput" placeholder="${t('haveCodePlaceholder')}" style="text-transform:uppercase;" />
+          <button class="btn secondary sm" id="loadCodeBtn" ${syncBusy ? 'disabled' : ''}>${t('loadCodeBtn')}</button>
+        </div>
+      `}
+
+      ${syncStatus ? `<div class="label-sm">${escapeAttr(syncStatus)}</div>` : ''}
+      <div class="label-sm">${t('syncNotAutomaticNote')}</div>
+    </div>
+  `;
+}
+
+function wireSyncSection(root) {
+  const getCodeBtn = root.querySelector('#getCodeBtn');
+  if (getCodeBtn) {
+    getCodeBtn.addEventListener('click', async () => {
+      const code = generateCode();
+      syncBusy = true;
+      syncStatus = '';
+      renderSettings(root);
+      try {
+        await pushToCode(code);
+        saveCodeLocally(code);
+        syncStatus = t('syncPushSuccess');
+      } catch {
+        syncStatus = t('syncError');
+      }
+      syncBusy = false;
+      renderSettings(root);
+    });
+  }
+
+  const loadCodeBtn = root.querySelector('#loadCodeBtn');
+  if (loadCodeBtn) {
+    loadCodeBtn.addEventListener('click', async () => {
+      const input = root.querySelector('#enterCodeInput');
+      const code = input.value.trim().toUpperCase();
+      if (!code) return;
+      if (!confirm(t('syncPullConfirm'))) return;
+      syncBusy = true;
+      syncStatus = '';
+      renderSettings(root);
+      try {
+        await pullFromCode(code);
+        saveCodeLocally(code);
+        syncStatus = t('syncPullSuccess');
+        renderSettings(root);
+        location.reload();
+        return;
+      } catch {
+        syncStatus = t('syncError');
+      }
+      syncBusy = false;
+      renderSettings(root);
+    });
+  }
+
+  const pushBtn = root.querySelector('#pushBtn');
+  if (pushBtn) {
+    pushBtn.addEventListener('click', async () => {
+      const code = getSavedCode();
+      syncBusy = true;
+      syncStatus = '';
+      renderSettings(root);
+      try {
+        await pushToCode(code);
+        syncStatus = t('syncPushSuccess');
+      } catch {
+        syncStatus = t('syncError');
+      }
+      syncBusy = false;
+      renderSettings(root);
+    });
+  }
+
+  const pullBtn = root.querySelector('#pullBtn');
+  if (pullBtn) {
+    pullBtn.addEventListener('click', async () => {
+      if (!confirm(t('syncPullConfirm'))) return;
+      const code = getSavedCode();
+      syncBusy = true;
+      syncStatus = '';
+      renderSettings(root);
+      try {
+        await pullFromCode(code);
+        syncStatus = t('syncPullSuccess');
+        renderSettings(root);
+        location.reload();
+        return;
+      } catch {
+        syncStatus = t('syncError');
+      }
+      syncBusy = false;
+      renderSettings(root);
+    });
+  }
+
+  const stopSyncBtn = root.querySelector('#stopSyncBtn');
+  if (stopSyncBtn) {
+    stopSyncBtn.addEventListener('click', () => {
+      if (!confirm(t('syncStopConfirm'))) return;
+      forgetCodeLocally();
+      syncStatus = '';
+      renderSettings(root);
+    });
+  }
+
+  const copyCodeBtn = root.querySelector('#copyCodeBtn');
+  if (copyCodeBtn) {
+    copyCodeBtn.addEventListener('click', async () => {
+      const code = getSavedCode();
+      try {
+        await navigator.clipboard.writeText(code);
+        syncStatus = t('codeCopied');
+        renderSettings(root);
+      } catch {
+        // clipboard API unavailable -- silently ignore, code is already visible on screen
+      }
+    });
+  }
 }
 
 function escapeAttr(s) {

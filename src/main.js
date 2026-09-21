@@ -16,6 +16,7 @@ import { renderCheckin } from './pages/checkin.js';
 import { renderTasks } from './pages/tasks.js';
 import { renderInsight } from './pages/insight.js';
 import { renderSettings } from './pages/settings.js';
+import { renderHelp } from './pages/help.js';
 
 const NAV_ITEMS = [
   { path: '/', icon: 'home', label: 'navHome' },
@@ -43,6 +44,7 @@ function renderShell() {
         <div class="topbar-inner">
           <a href="#/" class="brand">${brandMarkSvg()}<span class="brand-name">${t('appName').toUpperCase()}</span></a>
           <div class="controls">
+            <button id="helpBtn" class="icon-circle sm muted" title="${t('openHelp')}" style="cursor:pointer;border:none;">${icon.help}</button>
             <button id="settingsBtn" class="icon-circle sm muted" style="cursor:pointer;border:none;">${icon.settings}</button>
           </div>
         </div>
@@ -55,6 +57,7 @@ function renderShell() {
   `;
 
   document.getElementById('settingsBtn').addEventListener('click', () => navigate('/settings'));
+  document.getElementById('helpBtn').addEventListener('click', () => navigate('/help'));
 
   renderBottomNav();
 
@@ -65,6 +68,7 @@ function renderShell() {
   registerRoute('/journal/evening', renderEvening);
   registerRoute('/journal/freeform', renderFreeform);
   registerRoute('/checkin', renderCheckin);
+  registerRoute('/help', renderHelp);
   registerRoute('/tasks', renderTasks);
   registerRoute('/insight', renderInsight);
   registerRoute('/settings', renderSettings);

@@ -62,11 +62,14 @@ export function renderSettings(root) {
         <button class="btn secondary" id="resetBtn" style="color:var(--danger);">${t('resetData')}</button>
       </div>
 
+      <button class="btn secondary" id="helpLink">${icon.help} ${t('openHelp')}</button>
+
       <div class="label-sm center-text">${t('localOnlyNotice')}</div>
     </div>
   `;
 
   root.querySelector('#backBtn').addEventListener('click', () => navigate('/'));
+  root.querySelector('#helpLink').addEventListener('click', () => navigate('/help'));
 
   root.querySelector('#nameInput').addEventListener('change', (e) => {
     const p = getProfile();

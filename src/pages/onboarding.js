@@ -22,7 +22,7 @@ export function renderOnboarding(onComplete) {
 }
 
 function progressBar() {
-  return `<div class="onboard-progress">${[0, 1, 2, 3].map((i) => `<div class="seg ${i <= step ? 'on' : ''}"></div>`).join('')}</div>`;
+  return `<div class="onboard-progress">${[0, 1, 2, 3, 4].map((i) => `<div class="seg ${i <= step ? 'on' : ''}"></div>`).join('')}</div>`;
 }
 
 function topControls() {
@@ -96,6 +96,24 @@ function renderStep(app, onComplete) {
     app.innerHTML = `
       <div class="onboard-wrap">
         ${progressBar()}
+        <div style="flex:1"></div>
+        <div class="center-text col" style="align-items:center;">
+          <div class="insight-icon-wrap">${icon.lock}</div>
+          <h1 class="screen-title font-head" style="font-size:22px;">${t('onboardHowTitle')}</h1>
+        </div>
+        <div class="card" style="font-size:13px; line-height:1.6;">${t('onboardHowBody')}</div>
+        <div style="flex:1"></div>
+        <button class="btn primary" id="nextBtn">${t('continueBtn')}</button>
+      </div>
+    `;
+    app.querySelector('#nextBtn').addEventListener('click', () => { step = 2; rerender(); });
+    return;
+  }
+
+  if (step === 2) {
+    app.innerHTML = `
+      <div class="onboard-wrap">
+        ${progressBar()}
         <div>
           <h2 class="screen-title font-head">${t('onboardGoalTitle')}</h2>
           <p class="screen-subtitle">${t('onboardGoalBody')}</p>
@@ -121,11 +139,11 @@ function renderStep(app, onComplete) {
         rerender();
       });
     });
-    app.querySelector('#nextBtn').addEventListener('click', () => { step = 2; rerender(); });
+    app.querySelector('#nextBtn').addEventListener('click', () => { step = 3; rerender(); });
     return;
   }
 
-  if (step === 2) {
+  if (step === 3) {
     app.innerHTML = `
       <div class="onboard-wrap">
         ${progressBar()}
@@ -146,7 +164,7 @@ function renderStep(app, onComplete) {
     `;
     app.querySelector('#manualBtn').addEventListener('click', () => {
       state.openCalendarAction = 'manual';
-      step = 3; rerender();
+      step = 4; rerender();
     });
     app.querySelector('#importBtn').addEventListener('click', () => {
       app.querySelector('#icsInput').click();
@@ -163,12 +181,12 @@ function renderStep(app, onComplete) {
         app.querySelector('#importStatus').textContent = t('icsImportError');
       }
     });
-    app.querySelector('#skipBtn').addEventListener('click', () => { step = 3; rerender(); });
-    app.querySelector('#nextBtn').addEventListener('click', () => { step = 3; rerender(); });
+    app.querySelector('#skipBtn').addEventListener('click', () => { step = 4; rerender(); });
+    app.querySelector('#nextBtn').addEventListener('click', () => { step = 4; rerender(); });
     return;
   }
 
-  // step 3 — done
+  // step 4 — done
   app.innerHTML = `
     <div class="onboard-wrap">
       ${progressBar()}

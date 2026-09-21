@@ -1,8 +1,9 @@
 import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
-import { getEvents, addEvent, removeEvent, eventsForDate, todayStr } from '../db.js';
+import { getEvents, addEvent, removeEvent, eventsForDate, getHabits, todayStr } from '../db.js';
 import { parseIcs } from '../lib/ics.js';
 import { weekdayKey } from '../lib/patterns.js';
+import { navigate } from '../router.js';
 
 let selectedDate = todayStr();
 let showForm = false;
@@ -14,11 +15,6 @@ let dragActive = false;
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
-}
-function fromMinutes(mins) {
-  const h = Math.floor(mins / 60) % 24;
-  const m = mins % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 async function handleIcsFile(file, root) {
@@ -33,24 +29,18 @@ async function handleIcsFile(file, root) {
   renderCalendar(root);
 }
 
-function buildTimelineRows(events) {
-  if (!events.length) return [];
-  const rows = [];
-  let cursor = Math.max(0, toMinutes(events[0].start) - 60);
-  events.forEach((ev) => {
-    const gap = toMinutes(ev.start) - cursor;
-    if (gap >= 30 && cursor > 0) {
-      rows.push({ type: 'suggest', start: fromMinutes(cursor) });
-    }
-    rows.push({ type: 'event', title: ev.title, start: ev.start, end: ev.end });
-    cursor = toMinutes(ev.end);
-  });
-  return rows;
+function buildTimelineRows(events, habitsWithTime, date) {
+  const eventRows = events.map((ev) => ({ type: 'event', title: ev.title, start: ev.start, end: ev.end }));
+  const habitRows = habitsWithTime.map((h) => ({
+    type: 'habit', title: h.name, start: h.time, done: !!h.history[date],
+  }));
+  return [...eventRows, ...habitRows].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
 }
 
 export function renderCalendar(root) {
   const events = eventsForDate(selectedDate);
-  const rows = buildTimelineRows(events);
+  const habitsWithTime = getHabits().filter((h) => h.time);
+  const rows = buildTimelineRows(events, habitsWithTime, selectedDate);
   const allEvents = getEvents();
 
   root.innerHTML = `
@@ -71,7 +61,7 @@ export function renderCalendar(root) {
         <div class="row" style="gap:5px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--accent-soft);border:1px dashed var(--accent);display:inline-block;"></span><span class="label-sm">${t('legendHabit')}</span></div>
       </div>
 
-      ${events.length === 0 ? `
+      ${rows.length === 0 ? `
         <div class="empty-state card">
           <div class="icon-circle">${icon.calendar}</div>
           <div class="title">${t('noEventsTodayTitle')}</div>
@@ -81,7 +71,7 @@ export function renderCalendar(root) {
         <div class="timeline">
           ${rows.map((r) => r.type === 'event' ? `
             <div class="tl-row">
-              <div class="tl-time">${r.start}</div>
+              <div class="tl-time" dir="ltr">${r.start}</div>
               <div class="tl-block event">
                 <div>${escapeHtml(r.title)}</div>
                 <div class="sub" dir="ltr">${r.start} – ${r.end}</div>
@@ -89,9 +79,10 @@ export function renderCalendar(root) {
             </div>
           ` : `
             <div class="tl-row">
-              <div class="tl-time">${r.start}</div>
-              <div class="tl-block suggest">
-                <div>${t('freeSlot')}</div>
+              <div class="tl-time" dir="ltr">${r.start}</div>
+              <div class="tl-block suggest habit-block-link">
+                <div class="row" style="gap:5px;">${r.done ? icon.check : ''}<span>${escapeHtml(r.title)}</span></div>
+                <div class="sub">${t('legendHabit')}</div>
               </div>
             </div>
           `).join('')}
@@ -196,6 +187,11 @@ export function renderCalendar(root) {
 
   root.querySelectorAll('.event-remove').forEach((btn) => {
     btn.addEventListener('click', () => { removeEvent(btn.dataset.id); renderCalendar(root); });
+  });
+
+  root.querySelectorAll('.habit-block-link').forEach((el) => {
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => navigate('/'));
   });
 }
 

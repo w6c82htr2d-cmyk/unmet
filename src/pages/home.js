@@ -1,13 +1,14 @@
 import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
 import {
-  getProfile, getHabits, addHabit, removeHabit, toggleHabitToday, habitStreak,
+  getProfile, getHabits, addHabit, updateHabit, removeHabit, toggleHabitToday, habitStreak,
   todayStr, eventsForDate,
 } from '../db.js';
 import { hasTourBeenSeen, startTour } from '../lib/tour.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
+let editingHabitId = null;
 
 function greetingKey() {
   const h = new Date().getHours();
@@ -117,8 +118,9 @@ export function renderHome(root) {
       e.preventDefault();
       const name = form.querySelector('#habitName').value.trim();
       const stackAfter = form.querySelector('#habitStack').value.trim();
+      const time = form.querySelector('#habitTime').value;
       if (!name) return;
-      addHabit({ name, stackAfter });
+      addHabit({ name, stackAfter, time });
       showAddForm = false;
       renderHome(root);
     });
@@ -137,6 +139,31 @@ export function renderHome(root) {
       renderHome(root);
     });
   });
+
+  root.querySelectorAll('.habit-edit-trigger').forEach((el) => {
+    el.addEventListener('click', () => {
+      editingHabitId = el.dataset.id;
+      renderHome(root);
+    });
+  });
+
+  const editForm = root.querySelector('#editHabitForm');
+  if (editForm) {
+    editForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = editForm.querySelector('#editHabitName').value.trim();
+      const stackAfter = editForm.querySelector('#editHabitStack').value.trim();
+      const time = editForm.querySelector('#editHabitTime').value;
+      if (!name) return;
+      updateHabit(editingHabitId, { name, stackAfter, time });
+      editingHabitId = null;
+      renderHome(root);
+    });
+    editForm.querySelector('#cancelEditBtn').addEventListener('click', () => {
+      editingHabitId = null;
+      renderHome(root);
+    });
+  }
 
   const addSuggestBtn = root.querySelector('#addSuggestBtn');
   if (addSuggestBtn) {
@@ -172,22 +199,47 @@ function habitFormHtml() {
       <input class="field" id="habitName" placeholder="${t('habitNamePlaceholder')}" required />
       <label class="label-sm">${t('stackAfterLabel')}</label>
       <input class="field" id="habitStack" placeholder="${t('stackAfterPlaceholder')}" />
+      <label class="label-sm">${t('habitTimeLabel')}</label>
+      <input class="field" type="time" id="habitTime" />
+      <div class="label-sm">${t('habitTimeHint')}</div>
       <button class="btn primary" type="submit">${t('saveHabit')}</button>
     </form>
   `;
 }
 
+function editHabitFormHtml(habit) {
+  return `
+    <form id="editHabitForm" class="card strong col">
+      <div class="label-sm">${t('editHabit')}</div>
+      <input class="field" id="editHabitName" value="${escapeAttr(habit.name)}" required />
+      <label class="label-sm">${t('stackAfterLabel')}</label>
+      <input class="field" id="editHabitStack" value="${escapeAttr(habit.stackAfter)}" placeholder="${t('stackAfterPlaceholder')}" />
+      <label class="label-sm">${t('habitTimeLabel')}</label>
+      <input class="field" type="time" id="editHabitTime" value="${escapeAttr(habit.time)}" />
+      <div class="label-sm">${t('habitTimeHint')}</div>
+      <div class="row" style="gap:8px;">
+        <button class="btn secondary grow" type="button" id="cancelEditBtn">${t('cancel')}</button>
+        <button class="btn primary grow" type="submit">${t('save')}</button>
+      </div>
+    </form>
+  `;
+}
+
 function habitRowHtml(habit) {
+  if (habit.id === editingHabitId) return editHabitFormHtml(habit);
   const doneToday = !!habit.history[todayStr()];
   const streak = habitStreak(habit);
+  const subParts = [];
+  if (habit.time) subParts.push(`<span dir="ltr">${habit.time}</span>`);
+  if (habit.stackAfter) subParts.push(`${t('stackedAfter')}: ${escapeHtml(habit.stackAfter)}`);
   return `
     <div class="card row">
       <button class="icon-circle sm ${doneToday ? 'filled' : 'muted'} habit-toggle" data-id="${habit.id}" style="border:none;cursor:pointer;">
         ${doneToday ? icon.check : icon.circle}
       </button>
-      <div class="grow">
+      <div class="grow habit-edit-trigger" data-id="${habit.id}" style="cursor:pointer;">
         <div style="font-size:12px; font-weight:700;">${escapeHtml(habit.name)}</div>
-        <div style="font-size:10px; color:var(--text-muted);">${habit.stackAfter ? t('stackedAfter') + ': ' + escapeHtml(habit.stackAfter) : t('noStack')}</div>
+        <div style="font-size:10px; color:var(--text-muted);">${subParts.length ? subParts.join(' · ') : t('noStack')}</div>
       </div>
       ${streak > 0 ? `<span class="chip">${streak}🔥</span>` : ''}
       <button class="chip clickable habit-remove" data-id="${habit.id}" title="${t('removeHabit')}">${icon.trash}</button>
@@ -220,4 +272,8 @@ function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/"/g, '&quot;');
 }

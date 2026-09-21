@@ -58,9 +58,17 @@ export function saveHabits(habits) {
   write(KEYS.habits, habits);
 }
 
-export function addHabit({ name, stackAfter }) {
+export function addHabit({ name, stackAfter, time }) {
   const habits = getHabits();
-  habits.push({ id: uid(), name, stackAfter: stackAfter || '', history: {}, createdAt: todayStr() });
+  habits.push({ id: uid(), name, stackAfter: stackAfter || '', time: time || '', history: {}, createdAt: todayStr() });
+  saveHabits(habits);
+}
+
+export function updateHabit(id, updates) {
+  const habits = getHabits();
+  const habit = habits.find((h) => h.id === id);
+  if (!habit) return;
+  Object.assign(habit, updates);
   saveHabits(habits);
 }
 

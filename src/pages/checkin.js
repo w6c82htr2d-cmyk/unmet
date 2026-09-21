@@ -88,7 +88,7 @@ export function renderCheckin(root) {
           ${stats.map((s) => `
             <div class="stat-card">
               <div class="label-sm">${s.label}</div>
-              <div class="value-lg">${s.value}<span style="font-size:11px; color:var(--text-muted); font-weight:600;">${s.suffix}</span></div>
+              <div class="value-lg" dir="ltr">${s.value}<span style="font-size:11px; color:var(--text-muted); font-weight:600;">${s.suffix}</span></div>
             </div>
           `).join('')}
         </div>

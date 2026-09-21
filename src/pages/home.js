@@ -4,6 +4,7 @@ import {
   getProfile, getHabits, addHabit, removeHabit, toggleHabitToday, habitStreak,
   todayStr, eventsForDate,
 } from '../db.js';
+import { hasTourBeenSeen, startTour } from '../lib/tour.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
@@ -147,6 +148,10 @@ export function renderHome(root) {
   }
   const notNowBtn = root.querySelector('#notNowBtn');
   if (notNowBtn) notNowBtn.addEventListener('click', () => { dismissedSuggestion = true; renderHome(root); });
+
+  if (!hasTourBeenSeen()) {
+    requestAnimationFrame(() => startTour());
+  }
 }
 
 function emptyHabitsHtml() {

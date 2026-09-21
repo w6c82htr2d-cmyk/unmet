@@ -1,6 +1,7 @@
 import { t } from '../i18n.js';
 import { icon } from '../icons.js';
 import { navigate } from '../router.js';
+import { startTour } from '../lib/tour.js';
 
 const TABS = [
   { icon: 'home', label: 'navHome', body: 'helpHome' },
@@ -49,8 +50,14 @@ export function renderHelp(root) {
         <div class="section-head" style="margin-bottom:8px;"><span class="title">${t('helpDataHeading')}</span></div>
         <div class="card" style="font-size:12.5px; line-height:1.6;">${t('helpDataBody')}</div>
       </div>
+
+      <button class="btn secondary" id="restartTourBtn">${t('restartTour')}</button>
     </div>
   `;
 
   root.querySelector('#backBtn').addEventListener('click', () => navigate('/'));
+  root.querySelector('#restartTourBtn').addEventListener('click', () => {
+    navigate('/');
+    requestAnimationFrame(() => requestAnimationFrame(() => startTour()));
+  });
 }

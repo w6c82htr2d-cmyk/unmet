@@ -7,7 +7,9 @@ import { weekdayKey } from '../lib/patterns.js';
 let selectedDate = todayStr();
 let showForm = false;
 let formType = 'once';
+let selectedWeekdays = [];
 let importStatus = '';
+let dragActive = false;
 
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -17,6 +19,18 @@ function fromMinutes(mins) {
   const h = Math.floor(mins / 60) % 24;
   const m = mins % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+async function handleIcsFile(file, root) {
+  try {
+    const text = await file.text();
+    const parsed = parseIcs(text);
+    parsed.forEach((ev) => addEvent(ev));
+    importStatus = t('icsImported', { n: parsed.length });
+  } catch {
+    importStatus = t('icsImportError');
+  }
+  renderCalendar(root);
 }
 
 function buildTimelineRows(events) {
@@ -84,9 +98,13 @@ export function renderCalendar(root) {
         </div>
       `}
 
-      <div class="row" style="gap:8px;">
-        <button class="btn secondary" id="addEventBtn">${icon.plus} ${t('manualAdd')}</button>
-        <button class="btn secondary" id="importBtn">${icon.upload} ${t('importIcs')}</button>
+      <button class="btn secondary" id="addEventBtn">${icon.plus} ${t('manualAdd')}</button>
+
+      <div class="card dashed center-text" id="dropZone" style="${dragActive ? 'outline:2px solid var(--accent);' : ''} cursor:pointer;">
+        <div class="icon-circle" style="margin:0 auto 8px;">${icon.upload}</div>
+        <div style="font-weight:700; font-size:12.5px; margin-bottom:2px;">${t('importIcs')}</div>
+        <div class="label-sm">${t('importDropHint')}</div>
+        <div class="label-sm" style="margin-top:6px;">${t('importSourceHint')}</div>
         <input type="file" id="icsFile" accept=".ics" style="display:none" />
       </div>
       ${importStatus ? `<div class="label-sm">${importStatus}</div>` : ''}
@@ -112,20 +130,32 @@ export function renderCalendar(root) {
     selectedDate = shiftDate(selectedDate, 1);
     renderCalendar(root);
   });
-  root.querySelector('#addEventBtn').addEventListener('click', () => { showForm = !showForm; renderCalendar(root); });
-  root.querySelector('#importBtn').addEventListener('click', () => root.querySelector('#icsFile').click());
-  root.querySelector('#icsFile').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = parseIcs(text);
-      parsed.forEach((ev) => addEvent(ev));
-      importStatus = t('icsImported', { n: parsed.length });
-    } catch {
-      importStatus = t('icsImportError');
-    }
+  root.querySelector('#addEventBtn').addEventListener('click', () => {
+    showForm = !showForm;
+    if (showForm) selectedWeekdays = [];
     renderCalendar(root);
+  });
+
+  const dropZone = root.querySelector('#dropZone');
+  const fileInput = root.querySelector('#icsFile');
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async (e) => {
+    if (e.target.files[0]) await handleIcsFile(e.target.files[0], root);
+  });
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!dragActive) { dragActive = true; renderCalendar(root); }
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dragActive = false;
+    renderCalendar(root);
+  });
+  dropZone.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dragActive = false;
+    const file = e.dataTransfer.files[0];
+    if (file) await handleIcsFile(file, root);
+    else renderCalendar(root);
   });
 
   const form = root.querySelector('#eventForm');
@@ -143,11 +173,24 @@ export function renderCalendar(root) {
         const date = form.querySelector('#evDate').value || selectedDate;
         addEvent({ title, type: 'once', date, start, end, source: 'manual' });
       } else {
-        const weekday = Number(form.querySelector('#evWeekday').value);
-        addEvent({ title, type: 'weekly', dayOfWeek: weekday, start, end, source: 'manual' });
+        if (!selectedWeekdays.length) return;
+        selectedWeekdays.forEach((dayOfWeek) => {
+          addEvent({ title, type: 'weekly', dayOfWeek, start, end, source: 'manual' });
+        });
       }
+      selectedWeekdays = [];
       showForm = false;
       renderCalendar(root);
+    });
+
+    root.querySelectorAll('.weekday-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const day = Number(chip.dataset.day);
+        selectedWeekdays = selectedWeekdays.includes(day)
+          ? selectedWeekdays.filter((d) => d !== day)
+          : [...selectedWeekdays, day];
+        renderCalendar(root);
+      });
     });
   }
 
@@ -167,9 +210,14 @@ function eventFormHtml() {
       ${formType === 'once' ? `
         <input class="field" type="date" id="evDate" value="${selectedDate}" />
       ` : `
-        <select class="field" id="evWeekday">
-          ${[0,1,2,3,4,5,6].map((d) => `<option value="${d}">${t(weekdayKey(d))}</option>`).join('')}
-        </select>
+        <div>
+          <label class="label-sm" style="display:block; margin-bottom:6px;">${t('repeatsOnLabel')}</label>
+          <div class="wrap-gap">
+            ${[0,1,2,3,4,5,6].map((d) => `
+              <button type="button" class="chip clickable weekday-chip ${selectedWeekdays.includes(d) ? 'solid' : ''}" data-day="${d}">${t(weekdayKey(d))}</button>
+            `).join('')}
+          </div>
+        </div>
       `}
       <div class="row" style="gap:8px;">
         <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="evStart" required /></div>

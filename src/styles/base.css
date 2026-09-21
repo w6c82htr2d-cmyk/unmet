@@ -344,3 +344,21 @@ html[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
 @media (min-width: 640px) {
   .page { padding-top: 28px; }
 }
+
+.tour-overlay { position: fixed; inset: 0; z-index: 300; }
+.tour-spot {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.6);
+  pointer-events: none;
+  transition: top .2s ease, left .2s ease, width .2s ease, height .2s ease;
+}
+.tour-tooltip {
+  position: fixed;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}

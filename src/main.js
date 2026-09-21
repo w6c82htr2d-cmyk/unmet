@@ -40,13 +40,17 @@ function renderShell() {
   app.innerHTML = `
     <div class="app-shell">
       <div class="topbar">
-        <a href="#/" class="brand">${brandMarkSvg()}<span class="brand-name">${t('appName').toUpperCase()}</span></a>
-        <div class="controls">
-          <button id="settingsBtn" class="icon-circle sm muted" style="cursor:pointer;border:none;">${icon.settings}</button>
+        <div class="topbar-inner">
+          <a href="#/" class="brand">${brandMarkSvg()}<span class="brand-name">${t('appName').toUpperCase()}</span></a>
+          <div class="controls">
+            <button id="settingsBtn" class="icon-circle sm muted" style="cursor:pointer;border:none;">${icon.settings}</button>
+          </div>
         </div>
       </div>
       <div id="page-root"></div>
-      <div class="bottom-nav" id="bottomNav"></div>
+      <nav class="bottom-nav">
+        <div class="bottom-nav-inner" id="bottomNav"></div>
+      </nav>
     </div>
   `;
 

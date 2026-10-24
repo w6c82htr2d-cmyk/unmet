@@ -5,9 +5,12 @@ import {
   todayStr, eventsForDate,
 } from '../db.js';
 import { hasTourBeenSeen, startTour } from '../lib/tour.js';
+import { detectPattern, patternSentence } from '../lib/patterns.js';
+import { navigate } from '../router.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
+let dismissedInsight = false;
 let editingHabitId = null;
 
 function greetingKey() {
@@ -68,7 +71,8 @@ function toMinutes(hhmm) {
 export function renderHome(root) {
   const profile = getProfile();
   const habits = getHabits();
-  const suggestion = dismissedSuggestion ? null : computeSuggestion();
+  const pattern = dismissedInsight ? null : detectPattern();
+  const suggestion = (pattern || dismissedSuggestion) ? null : computeSuggestion();
 
   root.innerHTML = `
     <div class="page">
@@ -100,7 +104,7 @@ export function renderHome(root) {
         </div>
       </div>
 
-      ${suggestion ? suggestionHtml(suggestion) : ''}
+      ${pattern ? insightCardHtml(pattern) : (suggestion ? suggestionHtml(suggestion) : '')}
     </div>
   `;
 
@@ -175,6 +179,11 @@ export function renderHome(root) {
   }
   const notNowBtn = root.querySelector('#notNowBtn');
   if (notNowBtn) notNowBtn.addEventListener('click', () => { dismissedSuggestion = true; renderHome(root); });
+
+  const viewInsightBtn = root.querySelector('#viewInsightBtn');
+  if (viewInsightBtn) viewInsightBtn.addEventListener('click', () => navigate('/insight'));
+  const dismissInsightBtn = root.querySelector('#dismissInsightBtn');
+  if (dismissInsightBtn) dismissInsightBtn.addEventListener('click', () => { dismissedInsight = true; renderHome(root); });
 
   if (!hasTourBeenSeen()) {
     requestAnimationFrame(() => startTour());
@@ -257,6 +266,22 @@ function suggestionHtml(suggestion) {
       <div class="row" style="gap:6px;">
         <button class="chip solid clickable" id="addSuggestBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('addBtn')}</button>
         <button class="chip clickable" id="notNowBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('notNow')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function insightCardHtml(pattern) {
+  return `
+    <div class="card dashed">
+      <div class="row" style="gap:7px; margin-bottom:6px;">
+        ${icon.alert}
+        <span style="font-size:11.5px; font-weight:700; color:var(--accent);">${t('insightTitle')}</span>
+      </div>
+      <div style="font-size:12px; line-height:1.5; margin-bottom:9px;">${patternSentence(pattern)}</div>
+      <div class="row" style="gap:6px;">
+        <button class="chip solid clickable" id="viewInsightBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('insightCta')}</button>
+        <button class="chip clickable" id="dismissInsightBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('notNow')}</button>
       </div>
     </div>
   `;

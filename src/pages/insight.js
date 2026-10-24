@@ -1,7 +1,6 @@
-import { t, getLang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { icon } from '../icons.js';
-import { detectPattern } from '../lib/patterns.js';
-import { weekdayKey } from '../lib/patterns.js';
+import { detectPattern, patternSentence } from '../lib/patterns.js';
 import { navigate } from '../router.js';
 
 export function renderInsight(root) {
@@ -18,14 +17,11 @@ export function renderInsight(root) {
         </div>
       </div>
     `;
-    root.querySelector('#backBtn').addEventListener('click', () => navigate('/checkin'));
+    root.querySelector('#backBtn').addEventListener('click', () => navigate('/'));
     return;
   }
 
-  const day = t(weekdayKey(pattern.weekday));
-  const body = getLang() === 'ar'
-    ? `فوّتّ "${escapeHtml(pattern.text)}" في يوم ${day} لـ ${pattern.count} مرات متتالية.`
-    : `You've missed "${escapeHtml(pattern.text)}" on ${day}s ${pattern.count} times.`;
+  const body = patternSentence(pattern);
 
   root.innerHTML = `
     <div class="page">
@@ -48,7 +44,7 @@ export function renderInsight(root) {
     </div>
   `;
 
-  root.querySelector('#backBtn').addEventListener('click', () => navigate('/checkin'));
+  root.querySelector('#backBtn').addEventListener('click', () => navigate('/'));
   root.querySelector('#gotItBtn').addEventListener('click', () => navigate('/'));
   root.querySelector('#adjustBtn').addEventListener('click', () => navigate('/calendar'));
 }

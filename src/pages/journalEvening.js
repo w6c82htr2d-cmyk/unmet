@@ -87,7 +87,7 @@ export function renderEvening(root) {
   root.querySelector('#saveBtn').addEventListener('click', () => {
     saveEveningEntry(todayStr(), draft);
     draft = null;
-    navigate('/checkin');
+    navigate('/');
   });
 }
 

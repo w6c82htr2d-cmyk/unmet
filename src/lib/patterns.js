@@ -1,4 +1,5 @@
 import { getAllMorningEntries, getAllEveningEntries, dayOfWeek } from '../db.js';
+import { t, getLang } from '../i18n.js';
 
 const WEEKDAY_KEYS = ['weekdaySun', 'weekdayMon', 'weekdayTue', 'weekdayWed', 'weekdayThu', 'weekdayFri', 'weekdaySat'];
 
@@ -44,17 +45,16 @@ export function detectPattern() {
   };
 }
 
-export function daysLoggedThisWeek() {
-  const eveningAll = getAllEveningEntries();
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay());
-  let count = 0;
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startOfWeek);
-    d.setDate(startOfWeek.getDate() + i);
-    const key = d.toISOString().slice(0, 10);
-    if (eveningAll[key]) count += 1;
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+export function patternSentence(pattern) {
+  const day = t(weekdayKey(pattern.weekday));
+  if (getLang() === 'ar') {
+    return `فوّتّ "${escapeHtml(pattern.text)}" في يوم ${day} لـ ${pattern.count} مرات متتالية.`;
   }
-  return count;
+  return `You've missed "${escapeHtml(pattern.text)}" on ${day}s ${pattern.count} times.`;
 }

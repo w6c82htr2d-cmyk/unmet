@@ -1,10 +1,16 @@
 import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
-import { getEvents, addEvent, removeEvent, eventsForDate, getHabits, todayStr } from '../db.js';
+import { getEvents, addEvent, removeEvent, eventsForDate, getHabits, todayStr, dayOfWeek } from '../db.js';
 import { parseIcs } from '../lib/ics.js';
 import { weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
 
+const HOUR_START = 7;
+const HOUR_END = 22;
+const PX_PER_HOUR = 24;
+const GRID_HEIGHT = (HOUR_END - HOUR_START) * PX_PER_HOUR;
+
+let weekStart = startOfWeek(todayStr());
 let selectedDate = todayStr();
 let showForm = false;
 let formType = 'once';
@@ -15,6 +21,16 @@ let dragActive = false;
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function startOfWeek(dateStr) {
+  return addDays(dateStr, -dayOfWeek(dateStr));
 }
 
 async function handleIcsFile(file, root) {
@@ -29,19 +45,39 @@ async function handleIcsFile(file, root) {
   renderCalendar(root);
 }
 
-function buildTimelineRows(events, habitsWithTime, date) {
-  const eventRows = events.map((ev) => ({ type: 'event', title: ev.title, start: ev.start, end: ev.end }));
-  const habitRows = habitsWithTime.map((h) => ({
-    type: 'habit', title: h.name, start: h.time, done: !!h.history[date],
-  }));
+function dayRows(date, habitsWithTime) {
+  const eventRows = eventsForDate(date).map((ev) => ({ type: 'event', title: ev.title, start: ev.start, end: ev.end }));
+  const habitRows = habitsWithTime.map((h) => ({ type: 'habit', title: h.name, start: h.time, done: !!h.history[date] }));
   return [...eventRows, ...habitRows].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
 }
 
+function clampMinutes(m) {
+  return Math.min(Math.max(m, HOUR_START * 60), HOUR_END * 60);
+}
+
+function gridBlocksHtml(rows) {
+  return rows.map((r) => {
+    const startMin = clampMinutes(toMinutes(r.start));
+    const endMin = clampMinutes(r.type === 'event' ? toMinutes(r.end) : toMinutes(r.start) + 20);
+    const top = (startMin - HOUR_START * 60) / 60 * PX_PER_HOUR;
+    const height = Math.max((endMin - startMin) / 60 * PX_PER_HOUR, 8);
+    return `<div class="grid-block ${r.type}" style="top:${top}px; height:${height}px;" title="${escapeAttr(r.title)}"></div>`;
+  }).join('');
+}
+
 export function renderCalendar(root) {
-  const events = eventsForDate(selectedDate);
   const habitsWithTime = getHabits().filter((h) => h.time);
-  const rows = buildTimelineRows(events, habitsWithTime, selectedDate);
+  const days = [0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const date = addDays(weekStart, i);
+    return { date, isToday: date === todayStr(), rows: dayRows(date, habitsWithTime) };
+  });
+  const selectedRows = dayRows(selectedDate, habitsWithTime);
   const allEvents = getEvents();
+  const dayLetters = getLang() === 'ar'
+    ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']
+    : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const weekEnd = addDays(weekStart, 6);
+  const fmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short', day: 'numeric' });
 
   root.innerHTML = `
     <div class="page">
@@ -51,9 +87,9 @@ export function renderCalendar(root) {
       </div>
 
       <div class="row between">
-        <button class="btn secondary sm" id="prevDay">${icon.back}</button>
-        <div style="font-weight:700; font-size:13px;">${new Date(selectedDate + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-        <button class="btn secondary sm" id="nextDay" style="transform:scaleX(-1);">${icon.back}</button>
+        <button class="btn secondary sm" id="prevWeek">${icon.back}</button>
+        <div style="font-weight:700; font-size:13px;" dir="ltr">${fmt(weekStart)} – ${fmt(weekEnd)}</div>
+        <button class="btn secondary sm" id="nextWeek" style="transform:scaleX(-1);">${icon.back}</button>
       </div>
 
       <div class="row" style="gap:14px;">
@@ -61,33 +97,56 @@ export function renderCalendar(root) {
         <div class="row" style="gap:5px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--accent-soft);border:1px dashed var(--accent);display:inline-block;"></span><span class="label-sm">${t('legendHabit')}</span></div>
       </div>
 
-      ${rows.length === 0 ? `
-        <div class="empty-state card">
-          <div class="icon-circle">${icon.calendar}</div>
-          <div class="title">${t('noEventsTodayTitle')}</div>
-          <div class="body">${t('noEventsTodayBody')}</div>
-        </div>
-      ` : `
-        <div class="timeline">
-          ${rows.map((r) => r.type === 'event' ? `
-            <div class="tl-row">
-              <div class="tl-time" dir="ltr">${r.start}</div>
-              <div class="tl-block event">
-                <div>${escapeHtml(r.title)}</div>
-                <div class="sub" dir="ltr">${r.start} – ${r.end}</div>
-              </div>
-            </div>
-          ` : `
-            <div class="tl-row">
-              <div class="tl-time" dir="ltr">${r.start}</div>
-              <div class="tl-block suggest habit-block-link">
-                <div class="row" style="gap:5px;">${r.done ? icon.check : ''}<span>${escapeHtml(r.title)}</span></div>
-                <div class="sub">${t('legendHabit')}</div>
-              </div>
-            </div>
+      <div class="week-grid">
+        <div class="week-grid-header">
+          <div class="hour-gutter-spacer"></div>
+          ${days.map((d, i) => `
+            <button class="week-day-header ${d.isToday ? 'today' : ''} ${d.date === selectedDate ? 'selected' : ''}" data-date="${d.date}">
+              <div class="d">${dayLetters[i]}</div>
+              <div class="n" dir="ltr">${Number(d.date.slice(8, 10))}</div>
+            </button>
           `).join('')}
         </div>
-      `}
+        <div class="week-grid-body" style="height:${GRID_HEIGHT}px;">
+          <div class="hour-gutter">
+            ${[8, 10, 12, 14, 16, 18, 20].map((h) => `<div class="hour-label" dir="ltr" style="top:${(h - HOUR_START) * PX_PER_HOUR}px;">${h}</div>`).join('')}
+          </div>
+          ${days.map((d) => `<button class="day-col" data-date="${d.date}">${gridBlocksHtml(d.rows)}</button>`).join('')}
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head" style="margin-bottom:8px;">
+          <span class="title">${new Date(selectedDate + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
+        </div>
+        ${selectedRows.length === 0 ? `
+          <div class="empty-state card">
+            <div class="icon-circle">${icon.calendar}</div>
+            <div class="title">${t('noEventsTodayTitle')}</div>
+            <div class="body">${t('noEventsTodayBody')}</div>
+          </div>
+        ` : `
+          <div class="timeline">
+            ${selectedRows.map((r) => r.type === 'event' ? `
+              <div class="tl-row">
+                <div class="tl-time" dir="ltr">${r.start}</div>
+                <div class="tl-block event">
+                  <div>${escapeHtml(r.title)}</div>
+                  <div class="sub" dir="ltr">${r.start} – ${r.end}</div>
+                </div>
+              </div>
+            ` : `
+              <div class="tl-row">
+                <div class="tl-time" dir="ltr">${r.start}</div>
+                <div class="tl-block suggest habit-block-link">
+                  <div class="row" style="gap:5px;">${r.done ? icon.check : ''}<span>${escapeHtml(r.title)}</span></div>
+                  <div class="sub">${t('legendHabit')}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
 
       <button class="btn secondary" id="addEventBtn">${icon.plus} ${t('manualAdd')}</button>
 
@@ -113,14 +172,24 @@ export function renderCalendar(root) {
     </div>
   `;
 
-  root.querySelector('#prevDay').addEventListener('click', () => {
-    selectedDate = shiftDate(selectedDate, -1);
+  root.querySelector('#prevWeek').addEventListener('click', () => {
+    weekStart = addDays(weekStart, -7);
+    selectedDate = addDays(selectedDate, -7);
     renderCalendar(root);
   });
-  root.querySelector('#nextDay').addEventListener('click', () => {
-    selectedDate = shiftDate(selectedDate, 1);
+  root.querySelector('#nextWeek').addEventListener('click', () => {
+    weekStart = addDays(weekStart, 7);
+    selectedDate = addDays(selectedDate, 7);
     renderCalendar(root);
   });
+
+  root.querySelectorAll('.week-day-header, .day-col').forEach((el) => {
+    el.addEventListener('click', () => {
+      selectedDate = el.dataset.date;
+      renderCalendar(root);
+    });
+  });
+
   root.querySelector('#addEventBtn').addEventListener('click', () => {
     showForm = !showForm;
     if (showForm) selectedWeekdays = [];
@@ -165,8 +234,8 @@ export function renderCalendar(root) {
         addEvent({ title, type: 'once', date, start, end, source: 'manual' });
       } else {
         if (!selectedWeekdays.length) return;
-        selectedWeekdays.forEach((dayOfWeek) => {
-          addEvent({ title, type: 'weekly', dayOfWeek, start, end, source: 'manual' });
+        selectedWeekdays.forEach((dow) => {
+          addEvent({ title, type: 'weekly', dayOfWeek: dow, start, end, source: 'manual' });
         });
       }
       selectedWeekdays = [];
@@ -241,14 +310,12 @@ function eventManageRow(ev) {
   `;
 }
 
-function shiftDate(dateStr, delta) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + delta);
-  return d.toISOString().slice(0, 10);
-}
-
 function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/"/g, '&quot;');
 }

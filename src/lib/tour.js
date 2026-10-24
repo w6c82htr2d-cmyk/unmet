@@ -8,7 +8,6 @@ const STEPS = [
   { selector: '.nav-item[data-path="/calendar"]', titleKey: 'tourCalendarTitle', bodyKey: 'tourCalendarBody' },
   { selector: '.nav-item[data-path="/journal"]', titleKey: 'tourJournalTitle', bodyKey: 'tourJournalBody' },
   { selector: '.nav-item[data-path="/tasks"]', titleKey: 'tourTasksTitle', bodyKey: 'tourTasksBody' },
-  { selector: '.nav-item[data-path="/checkin"]', titleKey: 'tourCheckinTitle', bodyKey: 'tourCheckinBody' },
   { selector: '#helpBtn', titleKey: 'tourHelpTitle', bodyKey: 'tourHelpBody' },
 ];
 

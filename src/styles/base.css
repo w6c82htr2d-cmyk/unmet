@@ -266,6 +266,46 @@ html[lang="ar"] h1.screen-title, html[lang="ar"] h2.screen-title { font-family: 
 .day-pill.today .n { background: var(--accent); color: var(--accent-text-on); }
 .day-pill .dot { position: absolute; bottom: -6px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
 
+.week-grid { display: flex; flex-direction: column; gap: 4px; }
+.week-grid-header { display: flex; gap: 2px; }
+.hour-gutter-spacer { width: 24px; flex-shrink: 0; }
+.week-day-header {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 4px 0 6px; border-radius: 10px;
+}
+.week-day-header .d { font-size: 9px; color: var(--text-faint); font-weight: 600; }
+.week-day-header .n {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+}
+.week-day-header.today .n { background: var(--accent); color: var(--accent-text-on); }
+.week-day-header.selected:not(.today) { background: var(--card); }
+.week-day-header.selected:not(.today) .n { color: var(--text); font-weight: 700; }
+@media (hover: hover) {
+  .week-day-header:hover { background: var(--card); }
+}
+
+.week-grid-body { display: flex; gap: 2px; position: relative; }
+.hour-gutter { width: 24px; flex-shrink: 0; position: relative; }
+.hour-label {
+  position: absolute; transform: translateY(-50%);
+  font-size: 8.5px; color: var(--text-faint); font-weight: 600;
+}
+.day-col {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  flex: 1; min-width: 0; position: relative;
+  border-inline-start: 1px solid var(--border);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--border) 0, var(--border) 1px,
+    transparent 1px, transparent 24px
+  );
+}
+.grid-block { position: absolute; left: 2px; right: 2px; border-radius: 3px; }
+.grid-block.event { background: var(--card-strong); }
+.grid-block.habit { background: var(--accent-soft); border: 1px dashed var(--accent); }
+
 .timeline { display: flex; flex-direction: column; gap: 8px; }
 .tl-row { display: flex; gap: 10px; align-items: stretch; }
 .tl-time { width: 48px; font-size: 9.5px; color: var(--text-faint); font-weight: 600; padding-top: 10px; }

@@ -8,7 +8,6 @@ const TABS = [
   { icon: 'calendar', label: 'navCalendar', body: 'helpCalendar' },
   { icon: 'journal', label: 'navJournal', body: 'helpJournal' },
   { icon: 'tasks', label: 'navTasks', body: 'helpTasks' },
-  { icon: 'checkin', label: 'navCheckin', body: 'helpCheckin' },
 ];
 
 const TIPS = ['helpTip1', 'helpTip2', 'helpTip3', 'helpTip4', 'helpTip5'];

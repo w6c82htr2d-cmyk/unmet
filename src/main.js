@@ -12,7 +12,6 @@ import { renderJournalHub } from './pages/journalHub.js';
 import { renderMorning } from './pages/journalMorning.js';
 import { renderEvening } from './pages/journalEvening.js';
 import { renderFreeform } from './pages/journalFreeform.js';
-import { renderCheckin } from './pages/checkin.js';
 import { renderTasks } from './pages/tasks.js';
 import { renderInsight } from './pages/insight.js';
 import { renderSettings } from './pages/settings.js';
@@ -24,7 +23,6 @@ const NAV_ITEMS = [
   { path: '/calendar', icon: 'calendar', label: 'navCalendar' },
   { path: '/journal', icon: 'journal', label: 'navJournal' },
   { path: '/tasks', icon: 'tasks', label: 'navTasks' },
-  { path: '/checkin', icon: 'checkin', label: 'navCheckin' },
 ];
 
 function brandMarkSvg() {
@@ -68,7 +66,6 @@ function renderShell() {
   registerRoute('/journal/morning', renderMorning);
   registerRoute('/journal/evening', renderEvening);
   registerRoute('/journal/freeform', renderFreeform);
-  registerRoute('/checkin', renderCheckin);
   registerRoute('/help', renderHelp);
   registerRoute('/tasks', renderTasks);
   registerRoute('/insight', renderInsight);

@@ -1,6 +1,6 @@
 import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
-import { getEvents, addEvent, removeEvent, eventsForDate, getHabits, todayStr, dayOfWeek } from '../db.js';
+import { getEvents, addEvent, removeEvent, eventsForDate, habitsForDate, todayStr, dayOfWeek, uid, habitLinkedEventTitle } from '../db.js';
 import { parseIcs } from '../lib/ics.js';
 import { weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
@@ -46,9 +46,18 @@ async function handleIcsFile(file, root) {
   renderCalendar(root);
 }
 
-function dayRows(date, habitsWithTime) {
+function dayRows(date) {
   const eventRows = eventsForDate(date).map((ev) => ({ type: 'event', title: ev.title, start: ev.start, end: ev.end }));
-  const habitRows = habitsWithTime.map((h) => ({ type: 'habit', title: h.name, start: h.time, done: !!h.history[date] }));
+  const habitRows = habitsForDate(date)
+    .filter((h) => h.resolvedTime)
+    .map((h) => ({
+      type: 'habit',
+      title: h.name,
+      start: h.resolvedTime,
+      done: !!h.history[date],
+      stacked: h.scheduleType === 'stacked',
+      linkedTitle: h.scheduleType === 'stacked' ? habitLinkedEventTitle(h) : null,
+    }));
   return [...eventRows, ...habitRows].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
 }
 
@@ -62,17 +71,18 @@ function gridBlocksHtml(rows) {
     const endMin = clampMinutes(r.type === 'event' ? toMinutes(r.end) : toMinutes(r.start) + 20);
     const top = (startMin - HOUR_START * 60) / 60 * PX_PER_HOUR;
     const height = Math.max((endMin - startMin) / 60 * PX_PER_HOUR, 8);
-    return `<div class="grid-block ${r.type}" style="top:${top}px; height:${height}px;" title="${escapeAttr(r.title)}"></div>`;
+    const stackedClass = r.type === 'habit' && r.stacked ? ' stacked' : '';
+    const titleAttr = r.type === 'habit' && r.linkedTitle ? `${r.title} (${t('stackedAfter')}: ${r.linkedTitle})` : r.title;
+    return `<div class="grid-block ${r.type}${stackedClass}" style="top:${top}px; height:${height}px;" title="${escapeAttr(titleAttr)}"></div>`;
   }).join('');
 }
 
 export function renderCalendar(root) {
-  const habitsWithTime = getHabits().filter((h) => h.time);
   const days = [0, 1, 2, 3, 4, 5, 6].map((i) => {
     const date = addDays(weekStart, i);
-    return { date, isToday: date === todayStr(), rows: dayRows(date, habitsWithTime) };
+    return { date, isToday: date === todayStr(), rows: dayRows(date) };
   });
-  const selectedRows = dayRows(selectedDate, habitsWithTime);
+  const selectedRows = dayRows(selectedDate);
   const allEvents = getEvents();
   const dayLetters = getLang() === 'ar'
     ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']
@@ -140,8 +150,8 @@ export function renderCalendar(root) {
               <div class="tl-row">
                 <div class="tl-time" dir="ltr">${r.start}</div>
                 <div class="tl-block suggest habit-block-link">
-                  <div class="row" style="gap:5px;">${r.done ? icon.check : ''}<span>${escapeHtml(r.title)}</span></div>
-                  <div class="sub">${t('legendHabit')}</div>
+                  <div class="row" style="gap:5px;">${r.done ? icon.check : ''}<span>${escapeHtml(r.title)}</span>${r.stacked ? `<span class="link-badge" title="${t('stackedAfter')}: ${escapeAttr(r.linkedTitle || '')}">${icon.sync}</span>` : ''}</div>
+                  <div class="sub">${r.stacked && r.linkedTitle ? `${t('stackedAfter')}: ${escapeHtml(r.linkedTitle)}` : t('legendHabit')}</div>
                 </div>
               </div>
             `).join('')}
@@ -241,8 +251,9 @@ export function renderCalendar(root) {
         if (!selectedWeekdays.length) return;
         const startDate = form.querySelector('#evRecurStart').value || selectedDate;
         const endDate = form.querySelector('#evRecurEnd').value || undefined;
+        const seriesId = uid();
         selectedWeekdays.forEach((dow) => {
-          addEvent({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual' });
+          addEvent({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual', seriesId });
         });
       }
       selectedWeekdays = [];

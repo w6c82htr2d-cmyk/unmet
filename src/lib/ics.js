@@ -40,10 +40,13 @@ function parseVEvent(block) {
     const days = bydayMatch
       ? bydayMatch[1].split(',').map((d) => BYDAY_MAP[d.toUpperCase()]).filter((d) => d !== undefined)
       : [new Date(start.date + 'T00:00:00').getDay()];
+    const seriesId = `ics-${title}-${startTime}-${Math.random().toString(36).slice(2, 8)}`;
     return days.map((dayOfWeek) => ({
       title,
       type: 'weekly',
       dayOfWeek,
+      startDate: start.date,
+      seriesId,
       start: startTime,
       end: endTime,
       source: 'ics',

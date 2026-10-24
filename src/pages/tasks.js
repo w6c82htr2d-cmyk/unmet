@@ -1,9 +1,11 @@
 import { t } from '../i18n.js';
 import { icon } from '../icons.js';
-import { getGoals, addGoal, removeGoal, toggleSubtask } from '../db.js';
+import { getGoals, addGoal, removeGoal, toggleSubtask, addHabit } from '../db.js';
 import { splitGoal, quadrant, findStalledSubtask } from '../lib/taskSplitter.js';
 
 let breaking = false;
+let openConvertId = null;
+let convertedIds = new Set();
 
 export function renderTasks(root) {
   const goals = getGoals();
@@ -59,10 +61,47 @@ export function renderTasks(root) {
       renderTasks(root);
     });
   });
+
+  root.querySelectorAll('.convert-trigger').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openConvertId = openConvertId === btn.dataset.sub ? null : btn.dataset.sub;
+      renderTasks(root);
+    });
+  });
+
+  root.querySelectorAll('.convert-habit').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      addHabit({ name: btn.dataset.text, scheduleType: 'independent' });
+      convertedIds.add(btn.dataset.sub);
+      openConvertId = null;
+      renderTasks(root);
+    });
+  });
+
+  root.querySelectorAll('.convert-task').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      addGoal({ text: btn.dataset.text, subtasks: [] });
+      convertedIds.add(btn.dataset.sub);
+      openConvertId = null;
+      renderTasks(root);
+    });
+  });
+}
+
+// The single best next action: the first not-done subtask, preferring the most urgent-and-important
+// quadrant first so the user always sees one clear recommendation rather than an undifferentiated list.
+function recommendedSubtaskId(goal) {
+  const order = ['doNow', 'quickWin', 'schedule', 'dropLater'];
+  for (const q of order) {
+    const found = goal.subtasks.find((s) => !s.done && quadrant(s.importance, s.urgency) === q);
+    if (found) return found.id;
+  }
+  return null;
 }
 
 function goalCard(goal) {
   const stalled = findStalledSubtask(goal);
+  const recommendedId = recommendedSubtaskId(goal);
   const counts = { doNow: 0, schedule: 0, quickWin: 0, dropLater: 0 };
   goal.subtasks.forEach((s) => { counts[quadrant(s.importance, s.urgency)] += 1; });
 
@@ -81,13 +120,7 @@ function goalCard(goal) {
       ` : ''}
 
       <div class="subtask-list">
-        ${goal.subtasks.map((s) => `
-          <div class="task-row card" style="padding:8px 10px; ${s.done ? 'opacity:.6;' : ''}">
-            <button class="task-dot ${s.importance === 'hi' ? 'hi' : 'lo'} subtask-toggle" data-goal="${goal.id}" data-sub="${s.id}" style="border:none; cursor:pointer;"></button>
-            <span class="grow" style="font-size:11px; ${s.done ? 'text-decoration:line-through;' : ''}">${escapeHtml(s.text)}</span>
-            <span class="chip ${s.importance === 'hi' && s.urgency === 'hi' ? 'accent' : ''}" style="font-size:9px; padding:3px 7px;">${t(quadrant(s.importance, s.urgency))}</span>
-          </div>
-        `).join('')}
+        ${goal.subtasks.map((s) => subtaskRow(goal.id, s, s.id === recommendedId)).join('')}
       </div>
 
       <div>
@@ -107,8 +140,37 @@ function goalCard(goal) {
   `;
 }
 
+function subtaskRow(goalId, s, isRecommended) {
+  const isOpen = openConvertId === s.id;
+  const isConverted = convertedIds.has(s.id);
+  return `
+    <div class="col" style="gap:0;">
+      <div class="task-row card ${isRecommended && !s.done ? 'recommended' : ''}" style="padding:8px 10px; ${s.done ? 'opacity:.6;' : ''}">
+        <button class="task-dot ${s.importance === 'hi' ? 'hi' : 'lo'} subtask-toggle" data-goal="${goalId}" data-sub="${s.id}" style="border:none; cursor:pointer;"></button>
+        <div class="grow">
+          ${isRecommended && !s.done ? `<div class="label-sm" style="color:var(--accent); margin-bottom:2px;">${t('nextUpBadge')}</div>` : ''}
+          <span style="font-size:11px; ${s.done ? 'text-decoration:line-through;' : ''}">${escapeHtml(s.text)}</span>
+        </div>
+        <span class="chip ${s.importance === 'hi' && s.urgency === 'hi' ? 'accent' : ''}" style="font-size:9px; padding:3px 7px;">${t(quadrant(s.importance, s.urgency))}</span>
+        ${!s.done && !isConverted ? `<button class="chip clickable convert-trigger" data-sub="${s.id}" title="${t('convertPrompt')}">${icon.plus}</button>` : ''}
+      </div>
+      ${isOpen ? `
+        <div class="row" style="gap:6px; padding:6px 10px 2px;">
+          <button class="chip clickable convert-habit" data-sub="${s.id}" data-text="${escapeAttr(s.text)}" style="flex:1; justify-content:center;">${t('convertToHabit')}</button>
+          <button class="chip clickable convert-task" data-sub="${s.id}" data-text="${escapeAttr(s.text)}" style="flex:1; justify-content:center;">${t('convertToTask')}</button>
+        </div>
+      ` : ''}
+      ${isConverted ? `<div class="label-sm" style="padding:2px 10px 4px; color:var(--success);">${t('convertedNote')}</div>` : ''}
+    </div>
+  `;
+}
+
 function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/"/g, '&quot;');
 }

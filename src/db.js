@@ -35,6 +35,20 @@ export function dayOfWeek(dateStr) {
   return new Date(dateStr + 'T00:00:00').getDay();
 }
 
+export function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+export function addMinutesToTime(hhmm, minutes) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = ((h * 60 + m + minutes) % (24 * 60) + 24 * 60) % (24 * 60);
+  const nh = Math.floor(total / 60);
+  const nm = total % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+}
+
 // ---------- Profile ----------
 export function getProfile() {
   return read(KEYS.profile, null);
@@ -50,17 +64,69 @@ export function isOnboarded() {
 }
 
 // ---------- Habits ----------
+// habit: { id, name, history: {date: bool}, createdAt,
+//   scheduleType: 'independent' | 'stacked',
+//   days?: [0-6]            // independent only; absent/empty = every day (legacy default)
+//   time?: 'HH:MM'          // independent only
+//   stackSeriesId?: id      // stacked only: links to an event series (see getEventSeriesList)
+//   offsetMinutes?: number  // stacked only: minutes after the linked event's end time
+//   stackAfter?: string     // legacy free-text label kept for display/history only; not used to schedule
+//   needsRelink?: boolean   // set when a legacy stacked habit's event link could not be resolved
+// }
+// Scheduling is always computed on the fly from the live event data (habitOccursOnDate/habitTimeForDate)
+// rather than cached, so editing or deleting a linked event is reflected immediately with no sync step.
+
+function migrateHabitEntry(habit, seriesList) {
+  const migrated = { ...habit, scheduleType: 'independent' };
+  if (habit.stackAfter) {
+    // Legacy stacked habits never stored a real link, only a text label typed by the user. Best-effort:
+    // relink automatically only when exactly one event series matches that label; otherwise leave the
+    // habit scheduled at its old fixed time and flag it so the UI can offer a safe manual relink.
+    const label = habit.stackAfter.trim().toLowerCase();
+    const matches = seriesList.filter((s) => s.title.trim().toLowerCase() === label);
+    if (matches.length === 1) {
+      migrated.scheduleType = 'stacked';
+      migrated.stackSeriesId = matches[0].seriesId;
+      migrated.offsetMinutes = 0;
+    } else {
+      migrated.needsRelink = true;
+    }
+  }
+  return migrated;
+}
+
 export function getHabits() {
-  return read(KEYS.habits, []);
+  const habits = read(KEYS.habits, []);
+  if (!habits.some((h) => !h.scheduleType)) return habits;
+  const seriesList = getEventSeriesList();
+  let changed = false;
+  const migrated = habits.map((h) => {
+    if (h.scheduleType) return h;
+    changed = true;
+    return migrateHabitEntry(h, seriesList);
+  });
+  if (changed) write(KEYS.habits, migrated);
+  return migrated;
 }
 
 export function saveHabits(habits) {
   write(KEYS.habits, habits);
 }
 
-export function addHabit({ name, stackAfter, time }) {
+export function addHabit(habit) {
   const habits = getHabits();
-  habits.push({ id: uid(), name, stackAfter: stackAfter || '', time: time || '', history: {}, createdAt: todayStr() });
+  habits.push({
+    id: uid(),
+    name: habit.name,
+    scheduleType: habit.scheduleType || 'independent',
+    days: habit.days && habit.days.length ? habit.days : undefined,
+    time: habit.time || '',
+    stackSeriesId: habit.stackSeriesId || undefined,
+    offsetMinutes: habit.scheduleType === 'stacked' ? (habit.offsetMinutes ?? 0) : undefined,
+    stackAfter: habit.stackAfter || '',
+    history: {},
+    createdAt: todayStr(),
+  });
   saveHabits(habits);
 }
 
@@ -76,33 +142,158 @@ export function removeHabit(id) {
   saveHabits(getHabits().filter((h) => h.id !== id));
 }
 
-export function toggleHabitToday(id) {
+export function toggleHabitForDate(id, dateStr) {
   const habits = getHabits();
   const habit = habits.find((h) => h.id === id);
   if (!habit) return;
-  const today = todayStr();
-  habit.history[today] = !habit.history[today];
+  habit.history[dateStr] = !habit.history[dateStr];
   saveHabits(habits);
 }
 
+export function toggleHabitToday(id) {
+  toggleHabitForDate(id, todayStr());
+}
+
+// True only on dates the habit is actually scheduled: for a stacked habit, only dates its linked
+// event series actually occurs on; for an independent habit, only its chosen weekdays (or every
+// day, for habits that never set specific days).
+export function habitOccursOnDate(habit, dateStr) {
+  if (habit.scheduleType === 'stacked') {
+    if (!habit.stackSeriesId) return false;
+    return !!seriesEventForDate(habit.stackSeriesId, dateStr);
+  }
+  if (habit.days && habit.days.length) return habit.days.includes(dayOfWeek(dateStr));
+  return true;
+}
+
+// Resolved HH:MM for a given date, or null if the habit isn't scheduled that day (or its link is
+// broken). For stacked habits this is always derived live from the linked event's current end time,
+// so an edited or rescheduled event is reflected immediately with no separate sync step.
+export function habitTimeForDate(habit, dateStr) {
+  if (habit.scheduleType === 'stacked') {
+    if (!habit.stackSeriesId) return null;
+    const ev = seriesEventForDate(habit.stackSeriesId, dateStr);
+    if (!ev) return null;
+    return addMinutesToTime(ev.end, habit.offsetMinutes || 0);
+  }
+  if (!habitOccursOnDate(habit, dateStr)) return null;
+  return habit.time || null;
+}
+
+// Live title of the linked event series, or null if the habit isn't stacked or its link is broken
+// (event deleted) — callers use this to show a "relink" affordance.
+export function habitLinkedEventTitle(habit) {
+  if (habit.scheduleType !== 'stacked' || !habit.stackSeriesId) return null;
+  const series = getEventSeries(habit.stackSeriesId);
+  return series.length ? series[0].title : null;
+}
+
+export function habitNeedsRelink(habit) {
+  if (habit.needsRelink) return true;
+  if (habit.scheduleType !== 'stacked') return false;
+  return !habit.stackSeriesId || getEventSeries(habit.stackSeriesId).length === 0;
+}
+
+// Habits scheduled on a given date, each annotated with its resolved time for that date, sorted by time.
+export function habitsForDate(dateStr) {
+  return getHabits()
+    .filter((h) => habitOccursOnDate(h, dateStr))
+    .map((h) => ({ ...h, resolvedTime: habitTimeForDate(h, dateStr) }))
+    .sort((a, b) => (a.resolvedTime || '99:99').localeCompare(b.resolvedTime || '99:99'));
+}
+
+// Current streak counting only scheduled days: unscheduled days are skipped (never break or extend
+// the streak), and today doesn't break an in-progress streak just because it isn't completed yet.
 export function habitStreak(habit) {
   let streak = 0;
   let offset = 0;
-  // if today isn't done yet, streak counts from yesterday backward
-  if (!habit.history[todayStr()]) offset = -1;
-  while (habit.history[todayStr(offset)]) {
-    streak += 1;
-    offset -= 1;
+  if (habitOccursOnDate(habit, todayStr()) && !habit.history[todayStr()]) offset = -1;
+  for (let i = 0; i < 400; i++) {
+    const date = todayStr(offset);
+    if (habit.createdAt && date < habit.createdAt) break;
+    if (habitOccursOnDate(habit, date)) {
+      if (habit.history[date]) { streak += 1; offset -= 1; } else break;
+    } else {
+      offset -= 1;
+    }
   }
   return streak;
 }
 
+// Longest streak ever, using the same scheduled-day logic, scanned forward from the habit's creation.
+export function longestHabitStreak(habit) {
+  const start = habit.createdAt || todayStr();
+  const end = todayStr();
+  if (start > end) return 0;
+  let longest = 0;
+  let current = 0;
+  let d = start;
+  let guard = 0;
+  while (d <= end && guard < 1000) {
+    if (habitOccursOnDate(habit, d)) {
+      if (habit.history[d]) { current += 1; longest = Math.max(longest, current); } else current = 0;
+    }
+    d = addDays(d, 1);
+    guard += 1;
+  }
+  return longest;
+}
+
+// Past `days` days of completion rate, using each day's actually-scheduled habits as the denominator
+// so a day with nothing scheduled shows as "free" (rate: null) instead of a misleading 0%.
+export function weeklyConsistency(days = 7) {
+  const habits = getHabits();
+  const result = [];
+  for (let offset = -(days - 1); offset <= 0; offset++) {
+    const date = todayStr(offset);
+    const scheduled = habits.filter((h) => habitOccursOnDate(h, date));
+    const completed = scheduled.filter((h) => h.history[date]);
+    result.push({
+      date,
+      scheduledCount: scheduled.length,
+      completedCount: completed.length,
+      rate: scheduled.length ? completed.length / scheduled.length : null,
+    });
+  }
+  return result;
+}
+
+// Next few real occurrences for a stacked habit being created/edited, for the save-time preview.
+export function previewStackedOccurrences(seriesId, offsetMinutes, count = 5, fromDate = todayStr()) {
+  const results = [];
+  let d = fromDate;
+  let guard = 0;
+  while (results.length < count && guard < 60) {
+    const ev = seriesEventForDate(seriesId, d);
+    if (ev) results.push({ date: d, time: addMinutesToTime(ev.end, offsetMinutes || 0) });
+    d = addDays(d, 1);
+    guard += 1;
+  }
+  return results;
+}
+
+// Next few occurrences for an independent habit being created/edited, for the same preview.
+export function previewIndependentOccurrences(days, time, count = 5, fromDate = todayStr()) {
+  const results = [];
+  let d = fromDate;
+  let guard = 0;
+  while (results.length < count && guard < 60) {
+    if (!days || !days.length || days.includes(dayOfWeek(d))) results.push({ date: d, time: time || null });
+    d = addDays(d, 1);
+    guard += 1;
+  }
+  return results;
+}
+
 // ---------- Calendar events ----------
-// event: { id, title, type: 'once'|'weekly', date?: 'YYYY-MM-DD', dayOfWeek?: 0-6,
+// event: { id, seriesId, title, type: 'once'|'weekly', date?: 'YYYY-MM-DD', dayOfWeek?: 0-6,
 //          startDate?: 'YYYY-MM-DD', endDate?: 'YYYY-MM-DD', start: 'HH:MM', end: 'HH:MM', source: 'manual'|'ics' }
 // startDate/endDate only apply to weekly events; omitted endDate means it never stops repeating.
+// A "series" is the set of events sharing a seriesId: one weekly event covering several weekdays
+// (e.g. "Classes" on Sun/Tue/Thu) is stored as one row per weekday, all sharing the same seriesId,
+// so a habit can stack after "the series" and follow every real occurrence rather than one weekday.
 export function getEvents() {
-  return read(KEYS.events, []);
+  return read(KEYS.events, []).map((e) => (e.seriesId ? e : { ...e, seriesId: e.id }));
 }
 
 export function saveEvents(events) {
@@ -111,13 +302,17 @@ export function saveEvents(events) {
 
 export function addEvent(event) {
   const events = getEvents();
-  events.push({ id: uid(), source: 'manual', ...event });
+  const id = uid();
+  events.push({ id, source: 'manual', seriesId: event.seriesId || id, ...event, id });
   saveEvents(events);
 }
 
 export function addEvents(newEvents) {
   const events = getEvents();
-  newEvents.forEach((e) => events.push({ id: uid(), ...e }));
+  newEvents.forEach((e) => {
+    const id = uid();
+    events.push({ seriesId: id, ...e, id });
+  });
   saveEvents(events);
 }
 
@@ -125,17 +320,43 @@ export function removeEvent(id) {
   saveEvents(getEvents().filter((e) => e.id !== id));
 }
 
+export function eventOccursOnDate(event, dateStr) {
+  if (event.type === 'once') return event.date === dateStr;
+  if (event.dayOfWeek !== dayOfWeek(dateStr)) return false;
+  if (event.startDate && dateStr < event.startDate) return false;
+  if (event.endDate && dateStr > event.endDate) return false;
+  return true;
+}
+
 export function eventsForDate(dateStr) {
-  const dow = dayOfWeek(dateStr);
   return getEvents()
-    .filter((e) => {
-      if (e.type === 'once') return e.date === dateStr;
-      if (e.dayOfWeek !== dow) return false;
-      if (e.startDate && dateStr < e.startDate) return false;
-      if (e.endDate && dateStr > e.endDate) return false;
-      return true;
-    })
+    .filter((e) => eventOccursOnDate(e, dateStr))
     .sort((a, b) => a.start.localeCompare(b.start));
+}
+
+// All events belonging to the same series (e.g. every weekday row of one recurring event).
+export function getEventSeries(seriesId) {
+  return getEvents().filter((e) => e.seriesId === seriesId);
+}
+
+// One representative entry per series, for pickers: { seriesId, title, members, source }.
+export function getEventSeriesList() {
+  const seen = new Map();
+  getEvents().forEach((e) => {
+    if (!seen.has(e.seriesId)) seen.set(e.seriesId, []);
+    seen.get(e.seriesId).push(e);
+  });
+  return Array.from(seen.entries()).map(([seriesId, members]) => ({
+    seriesId,
+    title: members[0].title,
+    source: members[0].source,
+    members: members.slice().sort((a, b) => (a.type === 'once' ? a.date.localeCompare(b.date) : a.dayOfWeek - b.dayOfWeek)),
+  }));
+}
+
+// The specific occurrence (event row) within a series that falls on dateStr, if any.
+export function seriesEventForDate(seriesId, dateStr) {
+  return getEventSeries(seriesId).find((e) => eventOccursOnDate(e, dateStr)) || null;
 }
 
 // ---------- Morning / Evening journal ----------

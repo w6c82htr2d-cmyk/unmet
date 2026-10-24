@@ -2,12 +2,14 @@ import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
 import {
   getProfile, getHabits, addHabit, updateHabit, removeHabit, toggleHabitForDate, habitStreak, longestHabitStreak,
-  habitsForDate, habitNeedsRelink, habitLinkedEventTitle, weeklyConsistency, todayStr, dayOfWeek,
-  getEventSeriesList, previewStackedOccurrences, previewIndependentOccurrences, eventsForDate,
+  habitsForDate, habitNeedsRelink, habitLinkedEventTitles, habitDuration, DEFAULT_HABIT_DURATION,
+  weeklyConsistency, consistencyRate, todayStr, dayOfWeek, getEvents, getEventSeriesList,
+  previewStackedOccurrences, previewIndependentOccurrences, eventsForDate,
 } from '../db.js';
 import { hasTourBeenSeen, startTour } from '../lib/tour.js';
 import { detectPattern, patternSentence, weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
+import { consumePendingHabitEdit } from '../lib/pendingEdit.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
@@ -19,7 +21,20 @@ let addDraft = freshDraft();
 let editDraft = {};
 
 function freshDraft() {
-  return { name: '', scheduleType: 'independent', days: [], time: '', seriesId: '', offset: 0 };
+  return { name: '', scheduleType: 'independent', days: [], time: '', duration: DEFAULT_HABIT_DURATION, eventIds: [], eventFilter: '', offset: 0 };
+}
+
+function draftFromHabit(habit) {
+  return {
+    name: habit.name,
+    scheduleType: habit.scheduleType === 'stacked' ? 'stacked' : 'independent',
+    days: habit.days ? [...habit.days] : [],
+    time: habit.time || '',
+    duration: habitDuration(habit),
+    eventIds: habit.stackEventIds ? [...habit.stackEventIds] : [],
+    eventFilter: '',
+    offset: habit.offsetMinutes ?? 0,
+  };
 }
 
 function greetingKey() {
@@ -75,7 +90,7 @@ function computeSuggestion() {
     const nextStart = events[i + 1] ? toMinutes(events[i + 1].start) : toMinutes(cur.end) + 999;
     const gap = nextStart - toMinutes(cur.end);
     if (gap >= 30) {
-      return { after: cur.title, time: cur.end, seriesId: cur.seriesId };
+      return { after: cur.title, time: cur.end, eventId: cur.id };
     }
   }
   return null;
@@ -87,6 +102,16 @@ function toMinutes(hhmm) {
 }
 
 export function renderHome(root) {
+  const pendingEditId = consumePendingHabitEdit();
+  if (pendingEditId) {
+    const h = getHabits().find((x) => x.id === pendingEditId);
+    if (h) {
+      editingHabitId = h.id;
+      editDraft = draftFromHabit(h);
+      showAddForm = false;
+    }
+  }
+
   const profile = getProfile();
   const allHabits = getHabits();
   const dayHabits = habitsForDate(selectedDate);
@@ -115,6 +140,7 @@ export function renderHome(root) {
       ${weekStrip()}
 
       ${allHabits.length ? progressCardHtml(completedCount, totalCount) : ''}
+      ${allHabits.length ? metricsRowHtml() : ''}
       ${allHabits.length ? weeklyConsistencyHtml(longest) : ''}
       ${relinkBannerHtml(brokenHabits)}
 
@@ -148,6 +174,7 @@ export function renderHome(root) {
 
   root.querySelector('#addHabitToggle').addEventListener('click', () => {
     showAddForm = !showAddForm;
+    editingHabitId = null;
     if (showAddForm) addDraft = freshDraft();
     renderHome(root);
   });
@@ -159,13 +186,15 @@ export function renderHome(root) {
     const form = root.querySelector('#addForm');
     const name = form.querySelector('#addName').value.trim();
     if (!name) return;
-    if (addDraft.scheduleType === 'stacked' && !addDraft.seriesId) return;
+    if (addDraft.scheduleType === 'stacked' && !addDraft.eventIds.length) return;
+    const duration = Number(form.querySelector('#addDuration').value) || DEFAULT_HABIT_DURATION;
     addHabit({
       name,
+      duration,
       scheduleType: addDraft.scheduleType,
       days: addDraft.scheduleType === 'independent' ? addDraft.days : undefined,
       time: addDraft.scheduleType === 'independent' ? form.querySelector('#addTime').value : '',
-      stackSeriesId: addDraft.scheduleType === 'stacked' ? addDraft.seriesId : undefined,
+      stackEventIds: addDraft.scheduleType === 'stacked' ? addDraft.eventIds : undefined,
       offsetMinutes: addDraft.scheduleType === 'stacked' ? addDraft.offset : undefined,
     });
     showAddForm = false;
@@ -191,19 +220,13 @@ export function renderHome(root) {
     });
   });
 
-  root.querySelectorAll('.habit-edit-trigger, .relink-trigger').forEach((el) => {
+  root.querySelectorAll('.habit-edit-trigger, .habit-edit-btn, .relink-trigger').forEach((el) => {
     el.addEventListener('click', () => {
       const habit = allHabits.find((h) => h.id === el.dataset.id);
       if (!habit) return;
+      showAddForm = false;
       editingHabitId = habit.id;
-      editDraft = {
-        name: habit.name,
-        scheduleType: habit.scheduleType === 'stacked' ? 'stacked' : 'independent',
-        days: habit.days ? [...habit.days] : [],
-        time: habit.time || '',
-        seriesId: habit.stackSeriesId || '',
-        offset: habit.offsetMinutes ?? 0,
-      };
+      editDraft = draftFromHabit(habit);
       renderHome(root);
     });
   });
@@ -213,13 +236,15 @@ export function renderHome(root) {
     wireHabitForm(root, 'edit', editDraft, () => {
       const name = editForm.querySelector('#editName').value.trim();
       if (!name) return;
-      if (editDraft.scheduleType === 'stacked' && !editDraft.seriesId) return;
+      if (editDraft.scheduleType === 'stacked' && !editDraft.eventIds.length) return;
+      const duration = Number(editForm.querySelector('#editDuration').value) || DEFAULT_HABIT_DURATION;
       updateHabit(editingHabitId, {
         name,
+        duration,
         scheduleType: editDraft.scheduleType,
         days: editDraft.scheduleType === 'independent' ? (editDraft.days.length ? editDraft.days : undefined) : undefined,
         time: editDraft.scheduleType === 'independent' ? editForm.querySelector('#editTime').value : '',
-        stackSeriesId: editDraft.scheduleType === 'stacked' ? editDraft.seriesId : undefined,
+        stackEventIds: editDraft.scheduleType === 'stacked' ? editDraft.eventIds : undefined,
         offsetMinutes: editDraft.scheduleType === 'stacked' ? editDraft.offset : undefined,
         needsRelink: false,
       });
@@ -237,7 +262,7 @@ export function renderHome(root) {
   const addSuggestBtn = root.querySelector('#addSuggestBtn');
   if (addSuggestBtn) {
     addSuggestBtn.addEventListener('click', () => {
-      addHabit({ name: t('habitNamePlaceholder'), scheduleType: 'stacked', stackSeriesId: suggestion.seriesId, offsetMinutes: 0 });
+      addHabit({ name: t('habitNamePlaceholder'), scheduleType: 'stacked', stackEventIds: [suggestion.eventId], offsetMinutes: 0 });
       dismissedSuggestion = true;
       renderHome(root);
     });
@@ -255,9 +280,28 @@ export function renderHome(root) {
   }
 }
 
+// Re-renders while keeping focus (and cursor position) on whatever field triggered it — needed for
+// the event-search box, which must re-render on every keystroke to live-filter, but would otherwise
+// lose focus each time since the whole page is rebuilt from an HTML string.
+function reRenderPreservingFocus(root) {
+  const active = document.activeElement;
+  const id = active && root.contains(active) ? active.id : null;
+  const selStart = id && active.selectionStart != null ? active.selectionStart : null;
+  renderHome(root);
+  if (id) {
+    const el = root.querySelector(`#${CSS.escape(id)}`);
+    if (el) {
+      el.focus();
+      if (selStart != null && el.setSelectionRange) {
+        try { el.setSelectionRange(selStart, selStart); } catch { /* not a text input */ }
+      }
+    }
+  }
+}
+
 // Shared wiring for both the add-habit and edit-habit forms: captures text-field values before
-// any re-render triggered by a sibling control (weekday chip, schedule toggle, select) so typed
-// text isn't lost, exactly the same fix applied to the calendar event form.
+// any re-render triggered by a sibling control (weekday chip, schedule toggle, select, checkbox)
+// so typed text isn't lost, exactly the same fix applied to the calendar event form.
 function wireHabitForm(root, prefix, draft, onSubmit) {
   const form = root.querySelector(`#${prefix}Form`);
   if (!form) return;
@@ -265,8 +309,10 @@ function wireHabitForm(root, prefix, draft, onSubmit) {
   const capture = () => {
     const nameEl = form.querySelector(`#${prefix}Name`);
     const timeEl = form.querySelector(`#${prefix}Time`);
+    const durationEl = form.querySelector(`#${prefix}Duration`);
     if (nameEl) draft.name = nameEl.value;
     if (timeEl) draft.time = timeEl.value;
+    if (durationEl) draft.duration = Number(durationEl.value) || draft.duration;
   };
 
   form.querySelectorAll(`input[name="${prefix}ScheduleType"]`).forEach((r) => {
@@ -282,14 +328,40 @@ function wireHabitForm(root, prefix, draft, onSubmit) {
     });
   });
 
-  const seriesSelect = form.querySelector('.stack-series-select');
-  if (seriesSelect) {
-    seriesSelect.addEventListener('change', () => { capture(); draft.seriesId = seriesSelect.value; renderHome(root); });
-  }
   const offsetSelect = form.querySelector('.stack-offset-select');
   if (offsetSelect) {
     offsetSelect.addEventListener('change', () => { capture(); draft.offset = Number(offsetSelect.value); renderHome(root); });
   }
+
+  const searchInput = form.querySelector('.event-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      capture();
+      draft.eventFilter = searchInput.value;
+      reRenderPreservingFocus(root);
+    });
+  }
+
+  form.querySelectorAll('.event-select').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      capture();
+      const id = cb.dataset.id;
+      draft.eventIds = cb.checked ? [...draft.eventIds, id] : draft.eventIds.filter((x) => x !== id);
+      renderHome(root);
+    });
+  });
+
+  form.querySelectorAll('.series-select-all').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      capture();
+      const series = getEventSeriesList().find((s) => s.seriesId === cb.dataset.series);
+      const memberIds = series ? series.members.map((m) => m.id) : [];
+      draft.eventIds = cb.checked
+        ? Array.from(new Set([...draft.eventIds, ...memberIds]))
+        : draft.eventIds.filter((id) => !memberIds.includes(id));
+      renderHome(root);
+    });
+  });
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -320,6 +392,28 @@ function progressCardHtml(completed, total) {
   `;
 }
 
+function metricsRowHtml() {
+  return `
+    <div class="metric-row-2">
+      ${metricCardSmHtml('consistencyLabel', 'teal', consistencyRate(7))}
+      ${metricCardSmHtml('momentumLabel', 'amber', consistencyRate(30))}
+    </div>
+  `;
+}
+
+function metricCardSmHtml(labelKey, colorClass, metric) {
+  const pct = metric.rate === null ? 0 : Math.round(metric.rate * 100);
+  return `
+    <div class="metric-card-sm">
+      <div class="metric-ring-sm ${colorClass}" style="--pct:${pct}"><span class="val">${metric.rate === null ? '—' : pct + '%'}</span></div>
+      <div>
+        <div class="label">${t(labelKey)}</div>
+        <div class="sub">${metric.rate === null ? t('notEnoughData') : `${metric.totalCompleted}/${metric.totalScheduled}`}</div>
+      </div>
+    </div>
+  `;
+}
+
 function weeklyConsistencyHtml(longest) {
   const data = weeklyConsistency(7);
   const lang = getLang();
@@ -335,7 +429,7 @@ function weeklyConsistencyHtml(longest) {
   return `
     <div class="card col">
       <div class="row between">
-        <span class="label-sm">${t('weeklyConsistencyTitle')}</span>
+        <span class="label-sm">${t('dailyBreakdownTitle')}</span>
         ${longest >= 2 ? `<span class="label-sm">🔥 ${t('longestStreakLabel', { n: longest })}</span>` : ''}
       </div>
       <div class="week-consistency">${bars}</div>
@@ -384,6 +478,8 @@ function noneScheduledHtml() {
   `;
 }
 
+const DURATION_PRESETS = [10, 15, 20, 30, 45, 60, 90];
+
 function habitFormHtml(prefix, draft) {
   const titleKey = prefix === 'add' ? 'newHabit' : 'editHabit';
   const submitKey = prefix === 'add' ? 'saveHabit' : 'save';
@@ -391,6 +487,11 @@ function habitFormHtml(prefix, draft) {
     <form id="${prefix}Form" class="card col" style="margin-bottom:10px;">
       <div class="label-sm">${t(titleKey)}</div>
       <input class="field" id="${prefix}Name" placeholder="${t('habitNamePlaceholder')}" value="${escapeAttr(draft.name)}" required />
+
+      <label class="label-sm">${t('durationLabel')}</label>
+      <input class="field" type="number" min="5" max="240" step="5" id="${prefix}Duration" value="${draft.duration}" list="${prefix}DurationPresets" />
+      <datalist id="${prefix}DurationPresets">${DURATION_PRESETS.map((n) => `<option value="${n}"></option>`).join('')}</datalist>
+      <div class="label-sm">${t('durationHint')}</div>
 
       <div class="schedule-toggle">
         <label class="${draft.scheduleType === 'independent' ? 'checked' : ''}">
@@ -405,7 +506,10 @@ function habitFormHtml(prefix, draft) {
 
       ${draft.scheduleType === 'independent' ? independentFieldsHtml(prefix, draft) : stackedFieldsHtml(prefix, draft)}
 
-      <button class="btn primary" type="submit">${t(submitKey)}</button>
+      <div class="row" style="gap:8px;">
+        ${prefix === 'edit' ? `<button class="btn secondary grow" type="button" id="cancelEditBtn">${t('cancel')}</button>` : ''}
+        <button class="btn primary grow" type="submit">${t(submitKey)}</button>
+      </div>
     </form>
   `;
 }
@@ -424,13 +528,13 @@ function independentFieldsHtml(prefix, draft) {
     <label class="label-sm">${t('habitTimeLabel')}</label>
     <input class="field" type="time" id="${prefix}Time" value="${escapeAttr(draft.time)}" />
     <div class="label-sm">${t('habitTimeHint')}</div>
+    ${draft.time ? previewIndepHtml(draft.days, draft.time, draft.duration) : ''}
   `;
 }
 
 function stackedFieldsHtml(prefix, draft) {
-  const seriesList = getEventSeriesList();
-  const idPrefix = prefix;
-  if (!seriesList.length) {
+  const allEvents = getEvents();
+  if (!allEvents.length) {
     return `
       <div class="empty-state card compact">
         <div class="icon-circle">${icon.calendar}</div>
@@ -439,38 +543,100 @@ function stackedFieldsHtml(prefix, draft) {
       </div>
     `;
   }
+  const seriesList = getEventSeriesList();
+  const filter = (draft.eventFilter || '').trim().toLowerCase();
+  const filteredSeries = filter ? seriesList.filter((s) => s.title.toLowerCase().includes(filter)) : seriesList;
+
   return `
-    <label class="label-sm">${t('stackEventLabel')}</label>
-    <select class="field stack-series-select" id="${idPrefix}SeriesId">
-      <option value="">—</option>
-      ${seriesList.map((s) => `<option value="${s.seriesId}" ${s.seriesId === draft.seriesId ? 'selected' : ''}>${escapeHtml(seriesSummary(s))}</option>`).join('')}
-    </select>
+    <label class="label-sm">${t('selectEventsLabel')}</label>
+    <div class="row" style="gap:6px; align-items:center; background:var(--field-bg, var(--card-strong)); border-radius:11px; padding:0 10px;">
+      <span style="display:flex; color:var(--text-faint);">${icon.search}</span>
+      <input class="field grow event-search-input" id="${prefix}EventSearch" placeholder="${t('searchEventsPlaceholder')}" value="${escapeAttr(draft.eventFilter || '')}" style="border:none; background:none; padding:9px 0;" autocomplete="off" />
+    </div>
+    <div class="event-picker-list">
+      ${filteredSeries.length ? filteredSeries.map((s) => seriesPickerGroup(s, draft)).join('') : `<div class="label-sm" style="padding:8px 2px;">${t('noMatchingEvents')}</div>`}
+    </div>
+    ${draft.eventIds.length ? selectedSummaryHtml(draft, allEvents) : `<div class="label-sm">${t('noEventsSelectedHint')}</div>`}
     <label class="label-sm">${t('stackOffsetLabel')}</label>
-    <select class="field stack-offset-select" id="${idPrefix}Offset">
+    <select class="field stack-offset-select" id="${prefix}Offset">
       <option value="0" ${draft.offset === 0 ? 'selected' : ''}>${t('offsetNow')}</option>
       <option value="10" ${draft.offset === 10 ? 'selected' : ''}>${t('offset10')}</option>
       <option value="30" ${draft.offset === 30 ? 'selected' : ''}>${t('offset30')}</option>
     </select>
-    ${draft.seriesId ? previewHtml(draft.seriesId, draft.offset) : ''}
+    ${draft.eventIds.length ? previewHtml(draft.eventIds, draft.offset, draft.duration) : ''}
+  `;
+}
+
+function seriesPickerGroup(series, draft) {
+  const memberIds = series.members.map((m) => m.id);
+  const allSelected = memberIds.every((id) => draft.eventIds.includes(id));
+  const someSelected = !allSelected && memberIds.some((id) => draft.eventIds.includes(id));
+  return `
+    <div class="event-picker-group">
+      <label class="event-picker-row parent">
+        <input type="checkbox" class="series-select-all" data-series="${series.seriesId}" ${allSelected ? 'checked' : ''} />
+        <span class="grow">
+          <span class="ep-title">${escapeHtml(series.title)}</span>
+          <span class="ep-sub">${escapeHtml(seriesSummary(series))}</span>
+        </span>
+        ${someSelected ? `<span class="chip" style="font-size:8.5px;">${t('partialLabel')}</span>` : ''}
+      </label>
+      ${series.members.length > 1 ? `
+        <div class="event-picker-members">
+          ${series.members.map((m) => `
+            <label class="event-picker-row member">
+              <input type="checkbox" class="event-select" data-id="${m.id}" ${draft.eventIds.includes(m.id) ? 'checked' : ''} />
+              <span>${memberLabel(m)}</span>
+            </label>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function memberLabel(m) {
+  if (m.type === 'once') return `<span dir="ltr">${m.date}</span> · <span dir="ltr">${m.start}–${m.end}</span>`;
+  return `${t(weekdayKey(m.dayOfWeek))} · <span dir="ltr">${m.start}–${m.end}</span>`;
+}
+
+function selectedSummaryHtml(draft, allEvents) {
+  const selected = draft.eventIds.map((id) => allEvents.find((e) => e.id === id)).filter(Boolean);
+  if (!selected.length) return '';
+  return `
+    <div class="wrap-gap">
+      ${selected.map((e) => `<span class="chip accent">${escapeHtml(e.title)} · ${e.type === 'once' ? escapeHtml(e.date) : t(weekdayKey(e.dayOfWeek))}</span>`).join('')}
+    </div>
   `;
 }
 
 function seriesSummary(series) {
   const first = series.members[0];
   if (first.type === 'once') {
-    return `${series.title} · ${first.date} · ${first.start}–${first.end}`;
+    return `${first.date} · ${first.start}–${first.end}`;
   }
   const days = series.members.map((m) => t(weekdayKey(m.dayOfWeek))).join(', ');
-  return `${series.title} · ${days} · ${first.start}–${first.end}`;
+  return `${days} · ${first.start}–${first.end}`;
 }
 
-function previewHtml(seriesId, offset) {
-  const occ = previewStackedOccurrences(seriesId, offset, 4);
+function previewHtml(eventIds, offset, duration) {
+  const occ = previewStackedOccurrences(eventIds, offset, duration, 4);
   if (!occ.length) return `<div class="label-sm">${t('noUpcomingPreview')}</div>`;
   return `
     <div class="occurrence-preview">
       <div class="label-sm">${t('upcomingPreviewLabel')}</div>
-      ${occ.map((o) => `<div class="occurrence-chip"><span class="d">${fmtPreviewDate(o.date)}</span><span dir="ltr">${o.time}</span></div>`).join('')}
+      ${occ.map((o) => `<div class="occurrence-chip"><span class="d">${fmtPreviewDate(o.date)}</span><span dir="ltr">${o.start}–${o.end}</span></div>`).join('')}
+    </div>
+  `;
+}
+
+function previewIndepHtml(days, time, duration) {
+  const occ = previewIndependentOccurrences(days, time, duration, 4);
+  if (!occ.length || !occ[0].start) return '';
+  return `
+    <div class="occurrence-preview">
+      <div class="label-sm">${t('upcomingPreviewLabel')}</div>
+      ${occ.map((o) => `<div class="occurrence-chip"><span class="d">${fmtPreviewDate(o.date)}</span><span dir="ltr">${o.start}${o.end ? '–' + o.end : ''}</span></div>`).join('')}
     </div>
   `;
 }
@@ -485,10 +651,10 @@ function habitRowHtml(habit) {
   const streak = habitStreak(habit);
   const needsRelink = habitNeedsRelink(habit);
   const subParts = [];
-  if (habit.resolvedTime) subParts.push(`<span dir="ltr">${habit.resolvedTime}</span>`);
+  if (habit.resolvedTime) subParts.push(`<span dir="ltr">${habit.resolvedTime}${habit.resolvedEndTime ? '–' + habit.resolvedEndTime : ''}</span>`);
   if (habit.scheduleType === 'stacked') {
-    const linkedTitle = habitLinkedEventTitle(habit);
-    if (linkedTitle) subParts.push(`${t('stackedAfter')}: ${escapeHtml(linkedTitle)}`);
+    const linkedTitles = habitLinkedEventTitles(habit);
+    if (linkedTitles.length) subParts.push(`${t('stackedAfter')}: ${escapeHtml(linkedTitles.join(', '))}`);
   } else if (habit.days && habit.days.length && habit.days.length < 7) {
     subParts.push(habit.days.slice().sort((a, b) => a - b).map((d) => t(weekdayKey(d))).join(', '));
   }
@@ -503,6 +669,7 @@ function habitRowHtml(habit) {
         ${needsRelink ? `<div class="relink-warning">${icon.warnTriangle}${t('needsRelinkWarning')}</div>` : ''}
       </div>
       ${streak > 0 ? `<span class="chip streak"><span class="streak-flame">🔥</span>${streak}</span>` : ''}
+      <button class="chip clickable habit-edit-btn" data-id="${habit.id}" title="${t('edit')}">${icon.pencil}</button>
       <button class="chip clickable habit-remove" data-id="${habit.id}" title="${t('removeHabit')}">${icon.trash}</button>
     </div>
   `;

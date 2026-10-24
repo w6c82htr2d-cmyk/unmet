@@ -9,7 +9,7 @@ import {
 import { hasTourBeenSeen, startTour } from '../lib/tour.js';
 import { detectPattern, patternSentence, weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
-import { consumePendingHabitEdit } from '../lib/pendingEdit.js';
+import { consumePendingHabitEdit, consumePendingAddHabit } from '../lib/pendingEdit.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
@@ -109,6 +109,17 @@ export function renderHome(root) {
       editingHabitId = h.id;
       editDraft = draftFromHabit(h);
       showAddForm = false;
+    }
+  }
+
+  const pendingAdd = consumePendingAddHabit();
+  if (pendingAdd) {
+    editingHabitId = null;
+    showAddForm = true;
+    addDraft = freshDraft();
+    if (pendingAdd.eventIds.length) {
+      addDraft.scheduleType = 'stacked';
+      addDraft.eventIds = pendingAdd.eventIds;
     }
   }
 

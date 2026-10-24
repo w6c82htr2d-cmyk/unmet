@@ -131,7 +131,7 @@ export function renderSettings(root) {
       importAll(data);
       location.reload();
     } catch {
-      alert(t('icsImportError'));
+      alert(t('dataImportError'));
     }
   });
 

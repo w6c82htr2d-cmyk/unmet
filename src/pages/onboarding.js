@@ -1,8 +1,7 @@
 import { t, getLang, setLang } from '../i18n.js';
 import { getTheme, setTheme } from '../theme.js';
-import { saveProfile, addEvents } from '../db.js';
+import { saveProfile } from '../db.js';
 import { icon } from '../icons.js';
-import { parseIcs } from '../lib/ics.js';
 
 const GOAL_TRACKS = [
   { id: 'gpa', label: 'goalGPA', icon: 'bookGoal' },
@@ -153,34 +152,13 @@ function renderStep(app, onComplete) {
         </div>
         <div class="col">
           <button class="btn secondary" id="manualBtn">${t('calendarManualOption')}</button>
-          <button class="btn secondary" id="importBtn">${t('calendarImportOption')}</button>
-          <input type="file" id="icsInput" accept=".ics" style="display:none" />
-          <div id="importStatus" class="label-sm"></div>
         </div>
         <div style="flex:1"></div>
         <button class="btn ghost" id="skipBtn">${t('calendarSkip')}</button>
         <button class="btn primary" id="nextBtn">${t('continueBtn')}</button>
       </div>
     `;
-    app.querySelector('#manualBtn').addEventListener('click', () => {
-      state.openCalendarAction = 'manual';
-      step = 4; rerender();
-    });
-    app.querySelector('#importBtn').addEventListener('click', () => {
-      app.querySelector('#icsInput').click();
-    });
-    app.querySelector('#icsInput').addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const text = await file.text();
-      try {
-        const events = parseIcs(text);
-        addEvents(events);
-        app.querySelector('#importStatus').textContent = t('icsImported', { n: events.length });
-      } catch {
-        app.querySelector('#importStatus').textContent = t('icsImportError');
-      }
-    });
+    app.querySelector('#manualBtn').addEventListener('click', () => { step = 4; rerender(); });
     app.querySelector('#skipBtn').addEventListener('click', () => { step = 4; rerender(); });
     app.querySelector('#nextBtn').addEventListener('click', () => { step = 4; rerender(); });
     return;

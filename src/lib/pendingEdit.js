@@ -13,3 +13,18 @@ export function consumePendingHabitEdit() {
   pendingHabitEditId = null;
   return id;
 }
+
+// Same idea, for the "+ Add Habit" entry points on Calendar: opens Home straight into the add-habit
+// form, optionally with a set of event ids pre-selected as the stacking anchor (e.g. right after
+// creating a routine). An empty eventIds array just opens the form with nothing preselected.
+let pendingAddHabit = null;
+
+export function requestAddHabit(eventIds = []) {
+  pendingAddHabit = { eventIds };
+}
+
+export function consumePendingAddHabit() {
+  const v = pendingAddHabit;
+  pendingAddHabit = null;
+  return v;
+}

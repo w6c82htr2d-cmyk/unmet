@@ -3,12 +3,11 @@ import { icon } from '../icons.js';
 import {
   getEvents, addEvent, removeEvent, removeEventSeries, updateEvent, updateEventSeries, updateEventOccurrence,
   removeEventOccurrence, eventsForDate, habitsForDate, todayStr, dayOfWeek, addDays, uid,
-  habitLinkedEventTitles, updateHabit, getCalendarView, setCalendarView,
+  habitLinkedEventTitles, updateHabit, getCalendarView, setCalendarView, getHabits, hasRoutines,
 } from '../db.js';
-import { parseIcs } from '../lib/ics.js';
 import { weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
-import { requestHabitEdit } from '../lib/pendingEdit.js';
+import { requestHabitEdit, requestAddHabit } from '../lib/pendingEdit.js';
 
 const HOUR_START = 6;
 const HOUR_END = 23;
@@ -28,11 +27,11 @@ let selectedDate = todayStr();
 let showForm = false;
 let formType = 'once';
 let selectedWeekdays = [];
-let importStatus = '';
-let dragActiveIcs = false;
 let formDraft = {};
 let editingEvent = null; // { event, scope: 'occurrence' | 'series' }
 let pointerBusy = false; // true while a create/reschedule drag session is active anywhere on the grid
+let routineSuccessEventIds = null; // set right after the user's *first* routine is created
+let dismissedHabitNudge = false; // "Maybe later" on the routine->habit nudge, for this session only
 
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -68,18 +67,6 @@ function startOfWeek(dateStr) {
 
 function fmtShort(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short', day: 'numeric' });
-}
-
-async function handleIcsFile(file, root) {
-  try {
-    const text = await file.text();
-    const parsed = parseIcs(text);
-    parsed.forEach((ev) => addEvent(ev));
-    importStatus = t('icsImported', { n: parsed.length });
-  } catch {
-    importStatus = t('icsImportError');
-  }
-  renderCalendar(root);
 }
 
 // Greedy interval-graph column layout so overlapping blocks sit side by side instead of stacking
@@ -217,10 +204,25 @@ function weekViewHtml(days) {
   `;
 }
 
+// Which onboarding phase (if any) to show, computed once per render and shared by the guidance
+// card and the quick-action buttons below the grid, so the same CTA never appears twice on screen.
+function guidancePhase() {
+  if (getHabits().length > 0) return null;
+  if (!hasRoutines()) return 'routine';
+  return 'habit';
+}
+
 export function renderCalendar(root) {
   const rows = dayRows(selectedDate);
   const allEvents = getEvents();
   const days = weekDaysMeta();
+  const phase = guidancePhase();
+  const guidanceHtml = guidanceCardHtml(phase);
+  // Only hide a quick-add button when the guidance card above is actually showing that same CTA
+  // (e.g. "Add a Routine" inside the phase-1 card) — once dismissed via "Maybe later", or once the
+  // card is gone for any other reason, both quick-add buttons must stay available per spec.
+  const cardShowsRoutineCta = phase === 'routine';
+  const cardShowsHabitCta = phase === 'habit' && guidanceHtml !== '';
 
   root.innerHTML = `
     <div class="page">
@@ -228,6 +230,8 @@ export function renderCalendar(root) {
         <h2 class="screen-title">${t('calendarTitle')}</h2>
         <div class="screen-subtitle">${t('calendarSubtitle')}</div>
       </div>
+
+      ${guidanceHtml}
 
       <div class="row between">
         <div class="toggle-pill" id="viewToggle">
@@ -254,16 +258,11 @@ export function renderCalendar(root) {
 
       ${viewMode === 'day' ? dayViewHtml(rows) : weekViewHtml(days)}
 
-      <button class="btn secondary" id="addEventBtn">${icon.plus} ${t('manualAdd')}</button>
-
-      <div class="card dashed center-text" id="dropZone" style="${dragActiveIcs ? 'outline:2px solid var(--accent);' : ''} cursor:pointer;">
-        <div class="icon-circle" style="margin:0 auto 8px;">${icon.upload}</div>
-        <div style="font-weight:700; font-size:12.5px; margin-bottom:2px;">${t('importIcs')}</div>
-        <div class="label-sm">${t('importDropHint')}</div>
-        <div class="label-sm" style="margin-top:6px;">${t('importSourceHint')}</div>
-        <input type="file" id="icsFile" accept=".ics" style="display:none" />
+      <div class="row" style="gap:8px;">
+        ${!cardShowsRoutineCta ? `<button class="btn secondary grow" id="addRoutineQuickBtn">${icon.repeat} ${t('addRoutineBtn')}</button>` : ''}
+        ${!cardShowsHabitCta ? `<button class="btn secondary grow" id="addHabitQuickBtn">${icon.plus} ${t('addHabitBtn')}</button>` : ''}
       </div>
-      ${importStatus ? `<div class="label-sm">${importStatus}</div>` : ''}
+      <button class="btn ghost" id="addEventBtn">${icon.plus} ${t('manualAdd')}</button>
 
       ${showForm ? eventFormHtml() : ''}
 
@@ -331,31 +330,121 @@ export function renderCalendar(root) {
   if (viewMode === 'day') wireDayColumn(root);
   else wireWeekView(root, days);
 
-  const dropZone = root.querySelector('#dropZone');
-  const fileInput = root.querySelector('#icsFile');
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', async (e) => {
-    if (e.target.files[0]) await handleIcsFile(e.target.files[0], root);
-  });
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    if (!dragActiveIcs) { dragActiveIcs = true; renderCalendar(root); }
-  });
-  dropZone.addEventListener('dragleave', () => {
-    dragActiveIcs = false;
-    renderCalendar(root);
-  });
-  dropZone.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    dragActiveIcs = false;
-    const file = e.dataTransfer.files[0];
-    if (file) await handleIcsFile(file, root);
-    else renderCalendar(root);
-  });
+  wireGuidanceCard(root);
+  const addRoutineQuickBtn = root.querySelector('#addRoutineQuickBtn');
+  if (addRoutineQuickBtn) addRoutineQuickBtn.addEventListener('click', () => openRoutineForm(root));
+  const addHabitQuickBtn = root.querySelector('#addHabitQuickBtn');
+  if (addHabitQuickBtn) {
+    addHabitQuickBtn.addEventListener('click', () => {
+      requestAddHabit([]);
+      navigate('/');
+    });
+  }
 
   wireCreateForm(root);
   wireManageList(root);
   if (editingEvent) wireEventModal(root);
+}
+
+// ---------- Onboarding guidance: "add your routine first" → "ready to build a habit" → nothing
+// once the user actually has habits, so returning users aren't nagged. ----------
+
+function stepsIndicatorHtml(currentStep) {
+  const steps = [
+    { n: 1, labelKey: 'stepRoutineLabel' },
+    { n: 2, labelKey: 'stepHabitLabel' },
+    { n: 3, labelKey: 'stepTrackLabel' },
+  ];
+  return `
+    <div class="steps-row">
+      ${steps.map((s) => `
+        <div class="step-item ${s.n === currentStep ? 'current' : ''} ${s.n < currentStep ? 'done' : ''}">
+          <div class="step-dot">${s.n < currentStep ? icon.check : s.n}</div>
+          <div class="step-label">${t(s.labelKey)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function guidanceCardHtml(phase) {
+  if (!phase) return '';
+
+  if (phase === 'routine') {
+    return `
+      <div class="card guidance-card">
+        ${stepsIndicatorHtml(1)}
+        <div class="icon-circle filled" style="margin-top:2px;">${icon.repeat}</div>
+        <div class="gc-title">${t('startRoutineTitle')}</div>
+        <div class="gc-body">${t('startRoutineBody')}</div>
+        <button class="btn primary" id="addRoutineBtn" style="margin-top:10px;">${icon.plus} ${t('addRoutineBtn')}</button>
+      </div>
+    `;
+  }
+
+  // phase === 'habit': routines exist, no habits yet
+  if (routineSuccessEventIds) {
+    return `
+      <div class="card guidance-card accent">
+        ${stepsIndicatorHtml(2)}
+        <div class="icon-circle filled" style="margin-top:2px;">${icon.check}</div>
+        <div class="gc-title">${t('routineSuccessTitle')}</div>
+        <div class="row" style="gap:8px; margin-top:10px;">
+          <button class="btn primary grow" id="goAddHabitBtn">${t('addHabitBtn')}</button>
+          <button class="btn secondary grow" id="maybeLaterBtn">${t('maybeLaterBtn')}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  if (dismissedHabitNudge) return '';
+
+  return `
+    <div class="card guidance-card">
+      ${stepsIndicatorHtml(2)}
+      <div class="gc-title">${t('readyForHabitTitle')}</div>
+      <div class="gc-body">${t('readyForHabitBody')}</div>
+      <div class="row" style="gap:8px; margin-top:10px;">
+        <button class="btn primary grow" id="goAddHabitBtn">${t('addHabitBtn')}</button>
+        <button class="btn secondary grow" id="maybeLaterBtn">${t('maybeLaterBtn')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function openRoutineForm(root) {
+  formType = 'weekly';
+  selectedWeekdays = [];
+  formDraft = {};
+  editingEvent = null;
+  showForm = true;
+  renderCalendar(root);
+  requestAnimationFrame(() => {
+    const form = root.querySelector('#eventForm');
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+function wireGuidanceCard(root) {
+  const addRoutineBtn = root.querySelector('#addRoutineBtn');
+  if (addRoutineBtn) addRoutineBtn.addEventListener('click', () => openRoutineForm(root));
+
+  const goAddHabitBtn = root.querySelector('#goAddHabitBtn');
+  if (goAddHabitBtn) {
+    goAddHabitBtn.addEventListener('click', () => {
+      requestAddHabit(routineSuccessEventIds || []);
+      navigate('/');
+    });
+  }
+
+  const maybeLaterBtn = root.querySelector('#maybeLaterBtn');
+  if (maybeLaterBtn) {
+    maybeLaterBtn.addEventListener('click', () => {
+      routineSuccessEventIds = null;
+      dismissedHabitNudge = true;
+      renderCalendar(root);
+    });
+  }
 }
 
 // ---------- Day-column interaction: tap/click to create, drag to create a range, drag an
@@ -638,9 +727,13 @@ function wireCreateForm(root) {
       const startDate = form.querySelector('#evRecurStart').value || selectedDate;
       const endDate = form.querySelector('#evRecurEnd').value || undefined;
       const seriesId = uid();
+      const wasFirstRoutine = !hasRoutines();
       selectedWeekdays.forEach((dow) => {
         addEvent({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual', seriesId });
       });
+      if (wasFirstRoutine) {
+        routineSuccessEventIds = getEvents().filter((e) => e.seriesId === seriesId).map((e) => e.id);
+      }
     }
     selectedWeekdays = [];
     formDraft = {};

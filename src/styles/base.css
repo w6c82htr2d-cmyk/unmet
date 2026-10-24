@@ -300,6 +300,30 @@ html[lang="ar"] h1.screen-title, html[lang="ar"] h2.screen-title { font-family: 
 .legend-dot.event { background: var(--card-strong); }
 .legend-dot.habit { background: var(--accent-soft); border-inline-start: 2.5px solid var(--accent); }
 
+/* ---------- Calendar onboarding guidance ---------- */
+.guidance-card { border: 1.5px solid var(--border); }
+.guidance-card.accent { border-color: var(--accent); background: var(--accent-soft); }
+.guidance-card .gc-title { font-size: 14px; font-weight: 800; margin-top: 8px; }
+.guidance-card .gc-body { font-size: 12px; line-height: 1.5; color: var(--text-muted); margin-top: 3px; }
+
+.steps-row { display: flex; align-items: flex-start; margin-bottom: 10px; }
+.step-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; }
+.step-item:not(:last-child)::after {
+  content: ''; position: absolute; top: 11px; left: calc(50% + 16px); right: calc(-50% + 16px);
+  height: 2px; background: var(--border);
+}
+html[dir="rtl"] .step-item:not(:last-child)::after { left: calc(-50% + 16px); right: calc(50% + 16px); }
+.step-item.done:not(:last-child)::after { background: var(--accent); }
+.step-dot {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 800; background: var(--card-strong); color: var(--text-faint); position: relative; z-index: 1;
+}
+.step-dot svg { width: 11px; height: 11px; }
+.step-item.current .step-dot { background: var(--accent); color: var(--accent-text-on); }
+.step-item.done .step-dot { background: var(--accent); color: var(--accent-text-on); }
+.step-label { font-size: 8.5px; font-weight: 600; color: var(--text-faint); text-align: center; }
+.step-item.current .step-label { color: var(--accent); font-weight: 700; }
+
 .day-grid-wrap { display: flex; gap: 6px; position: relative; }
 .hour-gutter { width: 30px; flex-shrink: 0; position: relative; }
 .hour-label {

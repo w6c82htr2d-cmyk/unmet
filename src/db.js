@@ -493,6 +493,12 @@ export function eventsForDate(dateStr) {
     .sort((a, b) => a.start.localeCompare(b.start));
 }
 
+// A "routine" is any recurring (weekly) commitment — classes, work, regular meetings — as opposed
+// to a one-off 'once' event. Used to drive the Calendar onboarding guidance.
+export function hasRoutines() {
+  return getEvents().some((e) => e.type === 'weekly');
+}
+
 // All events belonging to the same series (e.g. every weekday row of one recurring event).
 export function getEventSeries(seriesId) {
   return getEvents().filter((e) => e.seriesId === seriesId);

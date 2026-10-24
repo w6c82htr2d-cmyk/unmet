@@ -14,6 +14,14 @@ export const translations = {
     modeLight: "Light",
     modeDark: "Dark",
 
+    startDictation: "Start voice dictation",
+    stopDictation: "Stop dictation",
+    listeningStatus: "Listening…",
+    micPermissionDenied: "Microphone access denied — check your browser's site permissions.",
+    micErrorGeneric: "Couldn't hear you — try again.",
+    voiceUnsupported: "Voice dictation isn't supported in this browser",
+    voiceUnsupportedShort: "Voice input not supported in this browser",
+
     navHome: "Home",
     navCalendar: "Calendar",
     navJournal: "Journal",
@@ -155,6 +163,9 @@ export const translations = {
 
     calendarTitle: "Calendar & habit stacking",
     calendarSubtitle: "Synced to your real schedule",
+    dayViewLabel: "Day",
+    weekViewLabel: "Week",
+    openDayView: "Open this day",
     legendCalendar: "Calendar event",
     legendHabit: "Habit",
     addEvent: "Add event",
@@ -191,7 +202,7 @@ export const translations = {
     insightCta: "Let's fix it",
 
     tasksTitle: "Task splitter",
-    tasksSubtitle: "Turn vague goals into your next step",
+    tasksSubtitle: "Got a lot on your mind? Brain-dump it here, and we'll turn it into small, manageable steps.",
     bigTaskLabel: "Your goal",
     bigTaskPlaceholder: "e.g. Improve my GPA",
     breakDown: "Break it down",
@@ -301,6 +312,14 @@ export const translations = {
     getStarted: "ابدأ",
     modeLight: "فاتح",
     modeDark: "داكن",
+
+    startDictation: "بدء الإملاء الصوتي",
+    stopDictation: "إيقاف الإملاء",
+    listeningStatus: "جارٍ الاستماع…",
+    micPermissionDenied: "تم رفض الوصول إلى الميكروفون — تحقق من أذونات الموقع في متصفحك.",
+    micErrorGeneric: "لم نسمعك بوضوح — حاول مرة أخرى.",
+    voiceUnsupported: "الإملاء الصوتي غير مدعوم في هذا المتصفح",
+    voiceUnsupportedShort: "الإدخال الصوتي غير مدعوم في هذا المتصفح",
 
     navHome: "الرئيسية",
     navCalendar: "التقويم",
@@ -443,6 +462,9 @@ export const translations = {
 
     calendarTitle: "التقويم وربط العادات",
     calendarSubtitle: "متزامن مع جدولك الفعلي",
+    dayViewLabel: "يوم",
+    weekViewLabel: "أسبوع",
+    openDayView: "فتح هذا اليوم",
     legendCalendar: "حدث في التقويم",
     legendHabit: "عادة",
     addEvent: "إضافة حدث",
@@ -479,7 +501,7 @@ export const translations = {
     insightCta: "لنصلح ذلك",
 
     tasksTitle: "مقسّم المهام",
-    tasksSubtitle: "حوّل الأهداف الغامضة إلى خطوتك التالية",
+    tasksSubtitle: "لديك الكثير في بالك؟ فرّغه هنا، وسنحوّله إلى خطوات صغيرة يمكن إدارتها.",
     bigTaskLabel: "هدفك",
     bigTaskPlaceholder: "مثال: تحسين معدلي التراكمي",
     breakDown: "قسّمها",

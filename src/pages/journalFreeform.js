@@ -4,6 +4,7 @@ import { getFreeformEntries, addFreeformEntry, setFreeformPlan, addHabit, addGoa
 import { planFromJournal, isStubActive } from '../lib/aiPlan.js';
 import { splitGoal } from '../lib/taskSplitter.js';
 import { navigate } from '../router.js';
+import { micButtonHtml, wireMicButton, stopActiveDictation } from '../lib/speechToText.js';
 
 let activeTab = 'write';
 let draftText = '';
@@ -12,6 +13,7 @@ let currentEntry = null;
 let planError = null;
 
 export function renderFreeform(root) {
+  stopActiveDictation();
   const entries = getFreeformEntries();
 
   root.innerHTML = `
@@ -49,12 +51,16 @@ export function renderFreeform(root) {
 }
 
 function renderTabContent(root) {
+  stopActiveDictation();
   const container = root.querySelector('#tabContent');
 
   if (activeTab === 'write') {
     container.innerHTML = `
       <div class="col" style="flex:1;">
-        <textarea class="field" id="brainDump" style="min-height:180px;" placeholder="${t('brainDumpPlaceholder')}">${escapeHtml(draftText)}</textarea>
+        <div class="textarea-wrap">
+          <textarea class="field" id="brainDump" style="min-height:180px;" placeholder="${t('brainDumpPlaceholder')}">${escapeHtml(draftText)}</textarea>
+          ${micButtonHtml('journalMic')}
+        </div>
         <button class="btn primary" id="planBtn" ${generating ? 'disabled' : ''}>
           ${icon.sparkle} ${generating ? t('generatingPlan') : t('turnIntoPlan')}
         </button>
@@ -63,6 +69,7 @@ function renderTabContent(root) {
     `;
     const textarea = container.querySelector('#brainDump');
     textarea.addEventListener('input', (e) => { draftText = e.target.value; });
+    wireMicButton(root, 'journalMic', textarea);
     container.querySelector('#planBtn').addEventListener('click', async () => {
       const text = textarea.value.trim();
       if (!text) return;

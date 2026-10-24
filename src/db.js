@@ -6,6 +6,7 @@ const KEYS = {
   evening: 'unmet_evening',
   freeform: 'unmet_freeform',
   goals: 'unmet_goals',
+  calendarView: 'unmet_calendar_view',
 };
 
 function read(key, fallback) {
@@ -61,6 +62,15 @@ export function saveProfile(profile) {
 export function isOnboarded() {
   const p = getProfile();
   return !!(p && p.firstName && p.onboarded);
+}
+
+// ---------- Calendar view preference ----------
+export function getCalendarView() {
+  return read(KEYS.calendarView, 'day') === 'week' ? 'week' : 'day';
+}
+
+export function setCalendarView(view) {
+  write(KEYS.calendarView, view === 'week' ? 'week' : 'day');
 }
 
 // ---------- Habits ----------

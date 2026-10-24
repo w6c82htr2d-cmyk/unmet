@@ -254,6 +254,30 @@ html[lang="ar"] .value-lg { font-family: var(--font-ar); }
 .field::placeholder { color: var(--text-faint); }
 textarea.field { resize: vertical; }
 
+/* ---------- Voice dictation ---------- */
+.mic-wrap { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.mic-btn {
+  all: unset; cursor: pointer; width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  background: var(--card-strong); color: var(--text-muted);
+  transition: background .15s ease, color .15s ease;
+}
+.mic-btn svg { width: 15px; height: 15px; }
+.mic-btn.listening { background: var(--accent); color: var(--accent-text-on); animation: micPulse 1.4s ease-in-out infinite; }
+.mic-btn.unsupported { opacity: .4; cursor: not-allowed; }
+.mic-status { font-size: 9.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+@media (hover: hover) {
+  .mic-btn:not(.unsupported):hover { background: var(--card); }
+}
+.textarea-wrap { position: relative; }
+.textarea-wrap textarea.field { padding-inline-end: 40px; }
+.textarea-wrap .mic-wrap { position: absolute; top: 10px; inset-inline-end: 10px; flex-direction: column; align-items: flex-end; gap: 4px; }
+.textarea-wrap .mic-status { max-width: 110px; text-align: end; white-space: normal; }
+
 h1.screen-title, h2.screen-title { font-family: var(--font-head-en); font-size: 20px; font-weight: 700; margin: 0; }
 html[lang="ar"] h1.screen-title, html[lang="ar"] h2.screen-title { font-family: var(--font-ar); font-weight: 800; }
 .screen-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
@@ -309,6 +333,31 @@ html[lang="ar"] h1.screen-title, html[lang="ar"] h2.screen-title { font-family: 
 .gb-time { font-size: 9px; font-weight: 600; opacity: .8; margin-top: 1px; }
 .gb-check { margin-inline-end: 3px; }
 .gb-link { position: absolute; top: 3px; inset-inline-end: 4px; display: inline-flex; color: inherit; opacity: .8; }
+
+/* ---------- Week view: horizontally-scrollable 7-day grid, sized to stay readable rather than
+   squeezing seven columns into one small screen ---------- */
+.week-grid-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
+.week-grid-inner { display: flex; }
+.week-hour-gutter { position: sticky; left: 0; z-index: 2; background: var(--bg); width: 28px; flex-shrink: 0; }
+html[dir="rtl"] .week-hour-gutter { left: auto; right: 0; }
+.week-day-col { flex: 0 0 118px; width: 118px; border-inline-start: 1px solid var(--border); }
+.week-day-col-header {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center;
+  width: 100%; padding: 4px 0 6px; border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0;
+}
+.week-day-col-header .wl { font-size: 8.5px; font-weight: 600; color: var(--text-faint); }
+.week-day-col-header .wn { font-size: 13px; font-weight: 800; color: var(--text); margin-top: 1px; }
+.week-day-col-header .wm { font-size: 8px; font-weight: 600; color: var(--text-faint); }
+.week-day-col-header.today { background: var(--accent-soft); }
+.week-day-col-header.today .wn, .week-day-col-header.today .wl { color: var(--accent); }
+@media (hover: hover) {
+  .week-day-col-header:hover { background: var(--card); }
+  .week-day-col-header.today:hover { background: var(--accent-soft); }
+}
+.week-day-col-body {
+  position: relative; cursor: pointer;
+  background-image: repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent 30px);
+}
 .gb-link svg { width: 10px; height: 10px; }
 @media (hover: hover) {
   .grid-block[data-draggable]:hover { box-shadow: 0 0 0 1.5px var(--accent); }

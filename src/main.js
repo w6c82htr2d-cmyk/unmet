@@ -17,6 +17,7 @@ import { renderInsight } from './pages/insight.js';
 import { renderSettings } from './pages/settings.js';
 import { renderHelp } from './pages/help.js';
 import { endTour } from './lib/tour.js';
+import { stopActiveDictation } from './lib/speechToText.js';
 
 const NAV_ITEMS = [
   { path: '/', icon: 'home', label: 'navHome' },
@@ -75,6 +76,7 @@ function renderShell() {
   onRouteChange((path) => {
     updateActiveNav(path);
     endTour();
+    stopActiveDictation();
   });
 
   startRouter();

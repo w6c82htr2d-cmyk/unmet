@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import {
   getEvents, addEvent, removeEvent, removeEventSeries, updateEvent, updateEventSeries, updateEventOccurrence,
   removeEventOccurrence, eventsForDate, habitsForDate, todayStr, dayOfWeek, addDays, uid,
-  habitLinkedEventTitles, updateHabit,
+  habitLinkedEventTitles, updateHabit, getCalendarView, setCalendarView,
 } from '../db.js';
 import { parseIcs } from '../lib/ics.js';
 import { weekdayKey } from '../lib/patterns.js';
@@ -14,11 +14,15 @@ const HOUR_START = 6;
 const HOUR_END = 23;
 const PX_PER_HOUR = 52;
 const GRID_HEIGHT = (HOUR_END - HOUR_START) * PX_PER_HOUR;
+const WEEK_PX_PER_HOUR = 30;
+const WEEK_GRID_HEIGHT = (HOUR_END - HOUR_START) * WEEK_PX_PER_HOUR;
+const WEEK_MIN_BLOCK_PX = 16;
 const SNAP_MIN = 15;
 const MIN_BLOCK_PX = 26;
 const LONG_PRESS_MS = 350;
 const MOVE_CANCEL_PX = 8;
 
+let viewMode = getCalendarView(); // 'day' | 'week' — persisted so it's remembered across visits
 let weekStart = startOfWeek(todayStr());
 let selectedDate = todayStr();
 let showForm = false;
@@ -50,16 +54,20 @@ function clampMinutes(m) {
   return Math.min(Math.max(m, HOUR_START * 60), HOUR_END * 60);
 }
 
-function minutesToPx(min) {
-  return (clampMinutes(min) - HOUR_START * 60) / 60 * PX_PER_HOUR;
+function minutesToPx(min, pxPerHour = PX_PER_HOUR) {
+  return (clampMinutes(min) - HOUR_START * 60) / 60 * pxPerHour;
 }
 
-function pxToMinutes(px) {
-  return HOUR_START * 60 + (px / PX_PER_HOUR) * 60;
+function pxToMinutes(px, pxPerHour = PX_PER_HOUR) {
+  return HOUR_START * 60 + (px / pxPerHour) * 60;
 }
 
 function startOfWeek(dateStr) {
   return addDays(dateStr, -dayOfWeek(dateStr));
+}
+
+function fmtShort(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short', day: 'numeric' });
 }
 
 async function handleIcsFile(file, root) {
@@ -122,16 +130,16 @@ function dayRows(date) {
   return layoutOverlaps([...eventRows, ...habitRows]);
 }
 
-function gridBlocksHtml(rows) {
+function gridBlocksHtml(rows, pxPerHour = PX_PER_HOUR, minBlockPx = MIN_BLOCK_PX, draggableEnabled = true) {
   return rows.map((r) => {
-    const top = minutesToPx(toMinutes(r.start));
-    const height = Math.max(minutesToPx(toMinutes(r.end)) - top, MIN_BLOCK_PX);
+    const top = minutesToPx(toMinutes(r.start), pxPerHour);
+    const height = Math.max(minutesToPx(toMinutes(r.end), pxPerHour) - top, minBlockPx);
     const widthPct = 100 / r.cols;
     const leftPct = r.col * widthPct;
-    const showTime = height >= 32;
+    const showTime = height >= 30;
     const typeClass = r.type === 'event' ? 'event' : (r.stacked ? 'habit stacked' : 'habit');
     const doneClass = r.type === 'habit' && r.done ? ' done' : '';
-    const draggable = r.type === 'event' || (r.type === 'habit' && !r.stacked);
+    const draggable = draggableEnabled && (r.type === 'event' || (r.type === 'habit' && !r.stacked));
     const subtitle = r.type === 'habit' && r.stacked && r.linkedTitles.length
       ? `${t('stackedAfter')}: ${r.linkedTitles.join(', ')}`
       : `${r.start}–${r.end}`;
@@ -147,16 +155,72 @@ function gridBlocksHtml(rows) {
   }).join('');
 }
 
-export function renderCalendar(root) {
-  const rows = dayRows(selectedDate);
-  const allEvents = getEvents();
+function weekDaysMeta() {
   const dayLetters = getLang() === 'ar'
     ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']
     : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const days = [0, 1, 2, 3, 4, 5, 6].map((i) => {
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => {
     const date = addDays(weekStart, i);
-    return { date, isToday: date === todayStr() };
+    return { date, letter: dayLetters[i], isToday: date === todayStr() };
   });
+}
+
+function dayStripHtml(days) {
+  return `
+    <div class="week-strip">
+      ${days.map((d) => `
+        <button class="day-pill ${d.isToday ? 'today' : ''} ${d.date === selectedDate ? 'selected' : ''}" data-date="${d.date}">
+          <div class="d">${d.letter}</div>
+          <div class="n">${Number(d.date.slice(8, 10))}${d.isToday ? '<span class="dot"></span>' : ''}</div>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function dayViewHtml(rows) {
+  return `
+    <div class="day-grid-wrap">
+      <div class="hour-gutter">
+        ${Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i).map((h) => `<div class="hour-label" dir="ltr" style="top:${(h - HOUR_START) * PX_PER_HOUR}px;">${h}</div>`).join('')}
+      </div>
+      <div class="day-col-wide" id="dayCol" style="height:${GRID_HEIGHT}px;">
+        ${gridBlocksHtml(rows)}
+      </div>
+    </div>
+    ${rows.length === 0 ? `<div class="label-sm center-text" style="margin-top:-6px;">${t('tapToCreateHint')}</div>` : ''}
+  `;
+}
+
+function weekViewHtml(days) {
+  const monthFmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short' });
+  return `
+    <div class="week-grid-scroll">
+      <div class="week-grid-inner">
+        <div class="week-hour-gutter">
+          ${Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i).map((h) => `<div class="hour-label" dir="ltr" style="top:${(h - HOUR_START) * WEEK_PX_PER_HOUR}px;">${h}</div>`).join('')}
+        </div>
+        ${days.map((d) => `
+          <div class="week-day-col">
+            <button class="week-day-col-header ${d.isToday ? 'today' : ''}" data-date="${d.date}" title="${t('openDayView')}">
+              <span class="wl">${d.letter}</span>
+              <span class="wn" dir="ltr">${Number(d.date.slice(8, 10))}</span>
+              <span class="wm">${monthFmt(d.date)}</span>
+            </button>
+            <div class="week-day-col-body" data-date="${d.date}" style="height:${WEEK_GRID_HEIGHT}px;">
+              ${gridBlocksHtml(dayRows(d.date), WEEK_PX_PER_HOUR, WEEK_MIN_BLOCK_PX, false)}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+export function renderCalendar(root) {
+  const rows = dayRows(selectedDate);
+  const allEvents = getEvents();
+  const days = weekDaysMeta();
 
   root.innerHTML = `
     <div class="page">
@@ -166,38 +230,29 @@ export function renderCalendar(root) {
       </div>
 
       <div class="row between">
-        <button class="btn secondary sm" id="prevWeek">${icon.back}</button>
+        <div class="toggle-pill" id="viewToggle">
+          <button data-val="day" class="${viewMode === 'day' ? 'active' : ''}">${t('dayViewLabel')}</button>
+          <button data-val="week" class="${viewMode === 'week' ? 'active' : ''}">${t('weekViewLabel')}</button>
+        </div>
         <button class="chip clickable" id="todayBtn">${t('todayBtn')}</button>
-        <button class="btn secondary sm" id="nextWeek" style="transform:scaleX(-1);">${icon.back}</button>
       </div>
 
-      <div class="week-strip">
-        ${days.map((d, i) => `
-          <button class="day-pill ${d.isToday ? 'today' : ''} ${d.date === selectedDate ? 'selected' : ''}" data-date="${d.date}">
-            <div class="d">${dayLetters[i]}</div>
-            <div class="n">${Number(d.date.slice(8, 10))}${d.isToday ? '<span class="dot"></span>' : ''}</div>
-          </button>
-        `).join('')}
+      <div class="row between">
+        <button class="btn secondary sm" id="prevBtn">${icon.back}</button>
+        <span class="label-sm" style="font-weight:700; font-size:12.5px; color:var(--text);" dir="${getLang() === 'ar' ? 'rtl' : 'ltr'}">${viewMode === 'day'
+          ? new Date(selectedDate + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+          : `${fmtShort(weekStart)} – ${fmtShort(addDays(weekStart, 6))}`}</span>
+        <button class="btn secondary sm" id="nextBtn" style="transform:scaleX(-1);">${icon.back}</button>
       </div>
+
+      ${viewMode === 'day' ? dayStripHtml(days) : ''}
 
       <div class="row" style="gap:14px;">
         <div class="row" style="gap:5px;"><span class="legend-dot event"></span><span class="label-sm">${t('legendCalendar')}</span></div>
         <div class="row" style="gap:5px;"><span class="legend-dot habit"></span><span class="label-sm">${t('legendHabit')}</span></div>
       </div>
 
-      <div class="section-head">
-        <span class="title">${new Date(selectedDate + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
-      </div>
-
-      <div class="day-grid-wrap">
-        <div class="hour-gutter">
-          ${Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i).map((h) => `<div class="hour-label" dir="ltr" style="top:${(h - HOUR_START) * PX_PER_HOUR}px;">${h}</div>`).join('')}
-        </div>
-        <div class="day-col-wide" id="dayCol" style="height:${GRID_HEIGHT}px;">
-          ${gridBlocksHtml(rows)}
-        </div>
-      </div>
-      ${rows.length === 0 ? `<div class="label-sm center-text" style="margin-top:-6px;">${t('tapToCreateHint')}</div>` : ''}
+      ${viewMode === 'day' ? dayViewHtml(rows) : weekViewHtml(days)}
 
       <button class="btn secondary" id="addEventBtn">${icon.plus} ${t('manualAdd')}</button>
 
@@ -225,14 +280,32 @@ export function renderCalendar(root) {
     ${editingEvent ? eventEditModalHtml(editingEvent) : ''}
   `;
 
-  root.querySelector('#prevWeek').addEventListener('click', () => {
-    weekStart = addDays(weekStart, -7);
-    selectedDate = addDays(selectedDate, -7);
+  root.querySelectorAll('#viewToggle button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      viewMode = btn.dataset.val;
+      setCalendarView(viewMode);
+      renderCalendar(root);
+    });
+  });
+
+  root.querySelector('#prevBtn').addEventListener('click', () => {
+    if (viewMode === 'day') {
+      selectedDate = addDays(selectedDate, -1);
+      weekStart = startOfWeek(selectedDate);
+    } else {
+      weekStart = addDays(weekStart, -7);
+      selectedDate = addDays(selectedDate, -7);
+    }
     renderCalendar(root);
   });
-  root.querySelector('#nextWeek').addEventListener('click', () => {
-    weekStart = addDays(weekStart, 7);
-    selectedDate = addDays(selectedDate, 7);
+  root.querySelector('#nextBtn').addEventListener('click', () => {
+    if (viewMode === 'day') {
+      selectedDate = addDays(selectedDate, 1);
+      weekStart = startOfWeek(selectedDate);
+    } else {
+      weekStart = addDays(weekStart, 7);
+      selectedDate = addDays(selectedDate, 7);
+    }
     renderCalendar(root);
   });
   root.querySelector('#todayBtn').addEventListener('click', () => {
@@ -255,7 +328,8 @@ export function renderCalendar(root) {
     renderCalendar(root);
   });
 
-  wireDayColumn(root);
+  if (viewMode === 'day') wireDayColumn(root);
+  else wireWeekView(root, days);
 
   const dropZone = root.querySelector('#dropZone');
   const fileInput = root.querySelector('#icsFile');
@@ -338,6 +412,44 @@ function wireDayColumn(root) {
     }
   });
   colEl.addEventListener('pointercancel', clearHold);
+}
+
+// ---------- Week view interaction: simpler than Day view's drag mechanics — seven narrow columns
+// aren't practical to drag precisely in, so each column supports a tap to create at that time and a
+// tap on a block to open it, same as Day view's tap fallback. Tapping a day's header jumps into Day
+// view focused on that date, for the richer drag-based editing there. ----------
+function wireWeekView(root, days) {
+  root.querySelectorAll('.week-day-col-header').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectedDate = btn.dataset.date;
+      viewMode = 'day';
+      setCalendarView('day');
+      renderCalendar(root);
+    });
+  });
+
+  days.forEach((d) => {
+    const bodyEl = root.querySelector(`.week-day-col-body[data-date="${d.date}"]`);
+    if (!bodyEl) return;
+    const rows = dayRows(d.date);
+    bodyEl.addEventListener('click', (e) => {
+      const blockEl = e.target.closest('.grid-block');
+      if (blockEl) {
+        const row = rows.find((r) => r.id === blockEl.dataset.rowId && r.type === blockEl.dataset.rowType);
+        if (row) {
+          // openBlockDetail (and the occurrence-scope edit it can lead to) acts on selectedDate, so
+          // make sure that matches the column the user actually clicked, not whatever date Day view
+          // last pointed at.
+          selectedDate = d.date;
+          openBlockDetail(row, root);
+        }
+        return;
+      }
+      const rect = bodyEl.getBoundingClientRect();
+      const anchorMin = snap(pxToMinutes(e.clientY - rect.top, WEEK_PX_PER_HOUR));
+      openCreateFormAt(d.date, fromMinutes(anchorMin), fromMinutes(anchorMin + 30), root);
+    });
+  });
 }
 
 function beginCreateDrag(colEl, root, anchorMin) {
@@ -428,6 +540,7 @@ function persistReschedule(row, newStart, newEnd) {
 }
 
 function openCreateFormAt(dateStr, start, end, root) {
+  selectedDate = dateStr;
   formDraft = { date: dateStr, start, end };
   formType = 'once';
   selectedWeekdays = [];

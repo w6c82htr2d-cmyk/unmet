@@ -2,12 +2,14 @@ import { t } from '../i18n.js';
 import { icon } from '../icons.js';
 import { getGoals, addGoal, removeGoal, toggleSubtask, addHabit } from '../db.js';
 import { splitGoal, quadrant, findStalledSubtask } from '../lib/taskSplitter.js';
+import { micButtonHtml, wireMicButton, stopActiveDictation } from '../lib/speechToText.js';
 
 let breaking = false;
 let openConvertId = null;
 let convertedIds = new Set();
 
 export function renderTasks(root) {
+  stopActiveDictation();
   const goals = getGoals();
 
   root.innerHTML = `
@@ -21,6 +23,7 @@ export function renderTasks(root) {
         <div class="label-sm">${t('bigTaskLabel')}</div>
         <div class="row" style="gap:8px;">
           <input class="field grow" id="goalInput" placeholder="${t('bigTaskPlaceholder')}" required />
+          ${micButtonHtml('taskMic')}
           <button class="chip solid clickable" type="submit" style="white-space:nowrap;" ${breaking ? 'disabled' : ''}>${breaking ? t('breakingDown') : t('breakDown')}</button>
         </div>
       </form>
@@ -38,6 +41,8 @@ export function renderTasks(root) {
       `}
     </div>
   `;
+
+  wireMicButton(root, 'taskMic', root.querySelector('#goalInput'));
 
   root.querySelector('#goalForm').addEventListener('submit', (e) => {
     e.preventDefault();

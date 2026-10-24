@@ -98,7 +98,9 @@ export function habitStreak(habit) {
 }
 
 // ---------- Calendar events ----------
-// event: { id, title, type: 'once'|'weekly', date?: 'YYYY-MM-DD', dayOfWeek?: 0-6, start: 'HH:MM', end: 'HH:MM', source: 'manual'|'ics' }
+// event: { id, title, type: 'once'|'weekly', date?: 'YYYY-MM-DD', dayOfWeek?: 0-6,
+//          startDate?: 'YYYY-MM-DD', endDate?: 'YYYY-MM-DD', start: 'HH:MM', end: 'HH:MM', source: 'manual'|'ics' }
+// startDate/endDate only apply to weekly events; omitted endDate means it never stops repeating.
 export function getEvents() {
   return read(KEYS.events, []);
 }
@@ -126,7 +128,13 @@ export function removeEvent(id) {
 export function eventsForDate(dateStr) {
   const dow = dayOfWeek(dateStr);
   return getEvents()
-    .filter((e) => (e.type === 'once' && e.date === dateStr) || (e.type === 'weekly' && e.dayOfWeek === dow))
+    .filter((e) => {
+      if (e.type === 'once') return e.date === dateStr;
+      if (e.dayOfWeek !== dow) return false;
+      if (e.startDate && dateStr < e.startDate) return false;
+      if (e.endDate && dateStr > e.endDate) return false;
+      return true;
+    })
     .sort((a, b) => a.start.localeCompare(b.start));
 }
 

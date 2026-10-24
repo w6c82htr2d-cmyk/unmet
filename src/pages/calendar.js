@@ -17,6 +17,7 @@ let formType = 'once';
 let selectedWeekdays = [];
 let importStatus = '';
 let dragActive = false;
+let formDraft = {};
 
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -192,7 +193,7 @@ export function renderCalendar(root) {
 
   root.querySelector('#addEventBtn').addEventListener('click', () => {
     showForm = !showForm;
-    if (showForm) selectedWeekdays = [];
+    if (showForm) { selectedWeekdays = []; formDraft = {}; }
     renderCalendar(root);
   });
 
@@ -221,7 +222,11 @@ export function renderCalendar(root) {
   const form = root.querySelector('#eventForm');
   if (form) {
     root.querySelectorAll('input[name="evType"]').forEach((r) => {
-      r.addEventListener('change', () => { formType = r.value; renderCalendar(root); });
+      r.addEventListener('change', () => {
+        captureFormDraft(form);
+        formType = r.value;
+        renderCalendar(root);
+      });
     });
     form.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -234,17 +239,21 @@ export function renderCalendar(root) {
         addEvent({ title, type: 'once', date, start, end, source: 'manual' });
       } else {
         if (!selectedWeekdays.length) return;
+        const startDate = form.querySelector('#evRecurStart').value || selectedDate;
+        const endDate = form.querySelector('#evRecurEnd').value || undefined;
         selectedWeekdays.forEach((dow) => {
-          addEvent({ title, type: 'weekly', dayOfWeek: dow, start, end, source: 'manual' });
+          addEvent({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual' });
         });
       }
       selectedWeekdays = [];
+      formDraft = {};
       showForm = false;
       renderCalendar(root);
     });
 
     root.querySelectorAll('.weekday-chip').forEach((chip) => {
       chip.addEventListener('click', () => {
+        captureFormDraft(form);
         const day = Number(chip.dataset.day);
         selectedWeekdays = selectedWeekdays.includes(day)
           ? selectedWeekdays.filter((d) => d !== day)
@@ -264,33 +273,57 @@ export function renderCalendar(root) {
   });
 }
 
+function captureFormDraft(form) {
+  formDraft = {
+    title: form.querySelector('#evTitle')?.value ?? formDraft.title,
+    start: form.querySelector('#evStart')?.value ?? formDraft.start,
+    end: form.querySelector('#evEnd')?.value ?? formDraft.end,
+    date: form.querySelector('#evDate')?.value ?? formDraft.date,
+    recurStart: form.querySelector('#evRecurStart')?.value ?? formDraft.recurStart,
+    recurEnd: form.querySelector('#evRecurEnd')?.value ?? formDraft.recurEnd,
+  };
+}
+
 function eventFormHtml() {
+  const d = formDraft;
   return `
     <form id="eventForm" class="card col">
-      <input class="field" id="evTitle" placeholder="${t('eventTitlePlaceholder')}" required />
+      <input class="field" id="evTitle" placeholder="${t('eventTitlePlaceholder')}" value="${escapeAttr(d.title || '')}" required />
       <div class="row" style="gap:14px;">
         <label class="row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="once" ${formType === 'once' ? 'checked' : ''}/> ${t('once')}</label>
         <label class="row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="weekly" ${formType === 'weekly' ? 'checked' : ''}/> ${t('recurWeekly')}</label>
       </div>
       ${formType === 'once' ? `
-        <input class="field" type="date" id="evDate" value="${selectedDate}" />
+        <input class="field" type="date" id="evDate" value="${d.date || selectedDate}" />
       ` : `
         <div>
           <label class="label-sm" style="display:block; margin-bottom:6px;">${t('repeatsOnLabel')}</label>
           <div class="wrap-gap">
-            ${[0,1,2,3,4,5,6].map((d) => `
-              <button type="button" class="chip clickable weekday-chip ${selectedWeekdays.includes(d) ? 'solid' : ''}" data-day="${d}">${t(weekdayKey(d))}</button>
+            ${[0,1,2,3,4,5,6].map((day) => `
+              <button type="button" class="chip clickable weekday-chip ${selectedWeekdays.includes(day) ? 'solid' : ''}" data-day="${day}">${t(weekdayKey(day))}</button>
             `).join('')}
           </div>
         </div>
+        <div class="row" style="gap:8px;">
+          <div class="col grow"><label class="label-sm">${t('recurStartLabel')}</label><input class="field" type="date" id="evRecurStart" value="${d.recurStart || selectedDate}" /></div>
+          <div class="col grow"><label class="label-sm">${t('recurEndLabel')}</label><input class="field" type="date" id="evRecurEnd" value="${d.recurEnd || ''}" min="${d.recurStart || selectedDate}" /></div>
+        </div>
+        <div style="font-size:10px; color:var(--text-muted);">${t('recurEndHint')}</div>
       `}
       <div class="row" style="gap:8px;">
-        <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="evStart" required /></div>
-        <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="evEnd" required /></div>
+        <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="evStart" value="${d.start || ''}" required /></div>
+        <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="evEnd" value="${d.end || ''}" required /></div>
       </div>
       <button class="btn primary" type="submit">${t('saveEvent')}</button>
     </form>
   `;
+}
+
+function recurRangeHtml(ev) {
+  if (ev.type !== 'weekly' || !ev.startDate) return '';
+  const from = ` · ${t('recurFromLabel')} <span dir="ltr">${ev.startDate}</span>`;
+  const until = ev.endDate ? ` ${t('recurUntilLabel')} <span dir="ltr">${ev.endDate}</span>` : '';
+  return `${from}${until}`;
 }
 
 function eventManageRow(ev) {
@@ -298,7 +331,7 @@ function eventManageRow(ev) {
   const timeRange = `${ev.start}–${ev.end}`;
   const subtitle = ev.type === 'once'
     ? `<span dir="ltr">${ev.date} · ${timeRange}${suffix}</span>`
-    : `${escapeHtml(t(weekdayKey(ev.dayOfWeek)))} · <span dir="ltr">${timeRange}</span>${suffix}`;
+    : `${escapeHtml(t(weekdayKey(ev.dayOfWeek)))} · <span dir="ltr">${timeRange}</span>${suffix}${recurRangeHtml(ev)}`;
   return `
     <div class="card row" style="padding:10px 12px;">
       <div class="grow">

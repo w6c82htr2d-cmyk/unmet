@@ -187,8 +187,22 @@ export function updateHabit(id, updates) {
   saveHabits(habits);
 }
 
+// Returns what was removed (the stored record, untouched, plus its position) so the caller can
+// offer an undo that puts back the exact same habit — streak history included.
 export function removeHabit(id) {
-  saveHabits(getHabits().filter((h) => h.id !== id));
+  const habits = getHabits();
+  const index = habits.findIndex((h) => h.id === id);
+  if (index === -1) return null;
+  const [habit] = habits.splice(index, 1);
+  saveHabits(habits);
+  return { habit, index };
+}
+
+export function restoreHabit({ habit, index }) {
+  const habits = getHabits();
+  if (habits.some((h) => h.id === habit.id)) return;
+  habits.splice(Math.min(index, habits.length), 0, habit);
+  saveHabits(habits);
 }
 
 export function toggleHabitForDate(id, dateStr) {

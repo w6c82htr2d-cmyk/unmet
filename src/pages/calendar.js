@@ -185,7 +185,10 @@ function weekViewHtml(days) {
     <div class="week-grid-scroll">
       <div class="week-grid-inner">
         <div class="week-hour-gutter">
-          ${Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i).map((h) => `<div class="hour-label" dir="ltr" style="top:${(h - HOUR_START) * WEEK_PX_PER_HOUR}px;">${h}</div>`).join('')}
+          <div class="week-gutter-head"></div>
+          <div class="week-gutter-body" style="height:${WEEK_GRID_HEIGHT}px;">
+            ${Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i).map((h) => `<div class="hour-label" dir="ltr" style="top:${(h - HOUR_START) * WEEK_PX_PER_HOUR}px;">${h}</div>`).join('')}
+          </div>
         </div>
         ${days.map((d) => `
           <div class="week-day-col">
@@ -735,10 +738,21 @@ function wireCreateForm(root) {
         routineSuccessEventIds = getEvents().filter((e) => e.seriesId === seriesId).map((e) => e.id);
       }
     }
+    const justCreatedFirstRoutine = formType === 'weekly' && !!routineSuccessEventIds;
     selectedWeekdays = [];
     formDraft = {};
     showForm = false;
     renderCalendar(root);
+    // The form sits near the bottom of a long page, but the "Your routine is set!" card renders at
+    // the top — bring it on screen (and focus its Add Habit button) so the next step isn't missed.
+    if (justCreatedFirstRoutine) {
+      requestAnimationFrame(() => {
+        const card = root.querySelector('.guidance-card');
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        root.querySelector('#goAddHabitBtn')?.focus({ preventScroll: true });
+      });
+    }
   });
   root.querySelectorAll('.weekday-chip').forEach((chip) => {
     chip.addEventListener('click', () => {

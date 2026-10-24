@@ -73,6 +73,8 @@ export const translations = {
     habitTimeLabel: "Time (optional)",
     habitTimeHint: "Set a time to see this habit on your Calendar timeline.",
     removeHabit: "Remove",
+    habitRemovedToast: "Habit removed",
+    undoBtn: "Undo",
     markDone: "Mark done",
     markUndone: "Tap to undo",
 
@@ -161,7 +163,7 @@ export const translations = {
     planErrorNotice: "AI planning is temporarily unavailable. Please try again in a moment.",
 
     calendarTitle: "Calendar & habit stacking",
-    calendarSubtitle: "Synced to your real schedule",
+    calendarSubtitle: "Your routines and habits, hour by hour",
     dayViewLabel: "Day",
     weekViewLabel: "Week",
     openDayView: "Open this day",
@@ -379,6 +381,8 @@ export const translations = {
     habitTimeLabel: "الوقت (اختياري)",
     habitTimeHint: "حدد وقتًا لرؤية هذه العادة في جدول تقويمك.",
     removeHabit: "إزالة",
+    habitRemovedToast: "تمت إزالة العادة",
+    undoBtn: "تراجع",
     markDone: "تحديد كمنجزة",
     markUndone: "اضغط للتراجع",
 
@@ -467,7 +471,7 @@ export const translations = {
     planErrorNotice: "ميزة التخطيط بالذكاء الاصطناعي غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.",
 
     calendarTitle: "التقويم وربط العادات",
-    calendarSubtitle: "متزامن مع جدولك الفعلي",
+    calendarSubtitle: "روتينك وعاداتك، ساعة بساعة",
     dayViewLabel: "يوم",
     weekViewLabel: "أسبوع",
     openDayView: "فتح هذا اليوم",

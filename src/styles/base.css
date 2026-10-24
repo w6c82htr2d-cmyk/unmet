@@ -361,13 +361,18 @@ html[dir="rtl"] .step-item:not(:last-child)::after { left: calc(-50% + 16px); ri
 /* ---------- Week view: horizontally-scrollable 7-day grid, sized to stay readable rather than
    squeezing seven columns into one small screen ---------- */
 .week-grid-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
-.week-grid-inner { display: flex; }
+.week-grid-inner { display: flex; --week-head-h: 48px; }
 .week-hour-gutter { position: sticky; left: 0; z-index: 2; background: var(--bg); width: 28px; flex-shrink: 0; }
+/* The gutter carries a spacer exactly as tall as each day column's header, so hour labels share
+   the same zero line as the blocks inside .week-day-col-body. */
+.week-gutter-head { height: var(--week-head-h); }
+.week-gutter-body { position: relative; }
 html[dir="rtl"] .week-hour-gutter { left: auto; right: 0; }
 .week-day-col { flex: 0 0 118px; width: 118px; border-inline-start: 1px solid var(--border); }
 .week-day-col-header {
   all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center;
-  width: 100%; padding: 4px 0 6px; border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0;
+  width: 100%; height: var(--week-head-h); justify-content: center;
+  border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0;
 }
 .week-day-col-header .wl { font-size: 8.5px; font-weight: 600; color: var(--text-faint); }
 .week-day-col-header .wn { font-size: 13px; font-weight: 800; color: var(--text); margin-top: 1px; }
@@ -580,3 +585,24 @@ html[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
 .metric-ring-sm.amber { background: conic-gradient(var(--metric-amber) calc(var(--pct,0)*1%), var(--card-strong) 0); }
 .metric-card-sm .label { font-size: 9.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; }
 .metric-card-sm .sub { font-size: 9.5px; color: var(--text-faint); margin-top: 1px; }
+
+/* ---------- Undo snackbar (fixed above the bottom nav) ---------- */
+.undo-toast {
+  position: fixed; z-index: 30; left: 50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  width: calc(100% - 32px); max-width: calc(var(--max-width) - 32px); box-sizing: border-box;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 6px 6px 16px; border-radius: 12px;
+  background: var(--text); color: var(--bg);
+  font-size: 13px; font-weight: 600;
+  box-shadow: 0 8px 24px -8px rgba(0,0,0,0.45);
+  animation: undo-toast-in .18s ease-out;
+}
+html[dir="rtl"] .undo-toast { padding: 6px 16px 6px 6px; }
+.undo-toast-btn {
+  all: unset; cursor: pointer; min-height: 44px; padding: 0 14px; border-radius: 9px;
+  font-weight: 800; color: inherit; background: color-mix(in srgb, var(--bg) 16%, transparent);
+}
+.undo-toast-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@keyframes undo-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+@media (prefers-reduced-motion: reduce) { .undo-toast { animation: none; } }

@@ -1,7 +1,7 @@
 import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
 import {
-  getProfile, getHabits, addHabit, updateHabit, removeHabit, toggleHabitForDate, habitStreak, longestHabitStreak,
+  getProfile, getHabits, addHabit, updateHabit, removeHabit, restoreHabit, toggleHabitForDate, habitStreak, longestHabitStreak,
   habitsForDate, habitNeedsRelink, habitLinkedEventTitles, habitDuration, DEFAULT_HABIT_DURATION,
   weeklyConsistency, consistencyRate, todayStr, dayOfWeek, getEvents, getEventSeriesList,
   previewStackedOccurrences, previewIndependentOccurrences, eventsForDate,
@@ -10,6 +10,7 @@ import { hasTourBeenSeen, startTour } from '../lib/tour.js';
 import { detectPattern, patternSentence, weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
 import { consumePendingHabitEdit, consumePendingAddHabit } from '../lib/pendingEdit.js';
+import { showUndoToast } from '../lib/undoToast.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
@@ -226,8 +227,14 @@ export function renderHome(root) {
 
   root.querySelectorAll('.habit-remove').forEach((btn) => {
     btn.addEventListener('click', () => {
-      removeHabit(btn.dataset.id);
+      const removed = removeHabit(btn.dataset.id);
       renderHome(root);
+      if (removed) {
+        showUndoToast(t('habitRemovedToast'), t('undoBtn'), () => {
+          restoreHabit(removed);
+          renderHome(root);
+        });
+      }
     });
   });
 

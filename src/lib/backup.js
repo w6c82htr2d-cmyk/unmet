@@ -28,7 +28,8 @@ function validHabit(h) {
     && (h.stackEventIds === undefined || (Array.isArray(h.stackEventIds) && h.stackEventIds.every(isId)))
     && isOptStr(h.createdAt, 40)
     && (h.stackPosition === undefined || h.stackPosition === 'before' || h.stackPosition === 'after')
-    && isOptStr(h.time, 5) && isOptStr(h.stackAfter, 500);
+    && isOptStr(h.time, 5) && isOptStr(h.stackAfter, 500)
+    && (h.remind === undefined || typeof h.remind === 'boolean');
 }
 
 function validEvent(e) {

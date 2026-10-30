@@ -169,6 +169,7 @@ export function addHabit(habit) {
     offsetMinutes: habit.scheduleType === 'stacked' ? (habit.offsetMinutes ?? 0) : undefined,
     stackPosition: habit.scheduleType === 'stacked' && habit.stackPosition === 'before' ? 'before' : undefined,
     stackAfter: habit.stackAfter || '',
+    remind: habit.remind === false ? false : undefined,
     history: {},
     createdAt: todayStr(),
   });

@@ -10,6 +10,7 @@ import { hasTourBeenSeen, startTour } from '../lib/tour.js';
 import { weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
 import { consumePendingHabitEdit, consumePendingAddHabit, requestAddRoutine } from '../lib/pendingEdit.js';
+import { getReminderSettings, permissionState } from '../lib/reminders.js';
 import { showUndoToast } from '../lib/undoToast.js';
 import { addDays, dateForDisplay } from '../lib/dates.js';
 import { homeInsightHtml, wireHomeInsight } from '../lib/homeInsight.js';
@@ -29,7 +30,7 @@ const GAP_CHOICES = [0, 5, 10, 15, 30];
 
 // when: 'everyday' | 'days' | 'routine'
 function freshDraft() {
-  return { name: '', duration: DEFAULT_HABIT_DURATION, customDuration: false, when: 'everyday', days: [], time: '', eventIds: [], eventFilter: '', offset: 0, customOffset: false, position: 'after' };
+  return { name: '', duration: DEFAULT_HABIT_DURATION, customDuration: false, when: 'everyday', days: [], time: '', eventIds: [], eventFilter: '', offset: 0, customOffset: false, position: 'after', remind: true };
 }
 
 function draftFromHabit(habit) {
@@ -48,7 +49,12 @@ function draftFromHabit(habit) {
     offset,
     customOffset: !GAP_CHOICES.includes(offset),
     position: habit.stackPosition === 'before' ? 'before' : 'after',
+    remind: habit.remind !== false,
   };
+}
+
+function remindersOn() {
+  return getReminderSettings().enabled && permissionState() === 'granted';
 }
 
 function greetingKey() {
@@ -330,6 +336,7 @@ function readForm(root, prefix, draft) {
     stackEventIds: stacked ? draft.eventIds : undefined,
     offsetMinutes: stacked ? Math.min(240, Math.max(0, draft.offset || 0)) : undefined,
     stackPosition: stacked && draft.position === 'before' ? 'before' : undefined,
+    remind: draft.remind ? undefined : false,
   };
 }
 
@@ -339,6 +346,8 @@ function captureFields(form, prefix, draft) {
   const timeEl = form.querySelector(`#${prefix}Time`);
   const durationEl = form.querySelector(`#${prefix}DurationCustom`);
   const offsetEl = form.querySelector(`#${prefix}OffsetCustom`);
+  const remindEl = form.querySelector(`#${prefix}Remind`);
+  if (remindEl) draft.remind = remindEl.checked;
   if (nameEl) draft.name = nameEl.value;
   if (timeEl) draft.time = timeEl.value;
   if (durationEl && durationEl.value) draft.duration = Math.round(Number(durationEl.value)) || draft.duration;
@@ -562,6 +571,9 @@ function habitFormHtml(prefix, draft) {
 
       ${formError ? `<div class="form-error" role="alert" tabindex="-1">${escapeHtml(formError)}</div>` : ''}
 
+${remindersOn() ? `
+        <label class="remind-row"><input type="checkbox" id="${prefix}Remind" ${draft.remind !== false ? 'checked' : ''} /> ${t('remindThisHabit')}</label>
+      ` : ''}
       <div class="form-actions">
         ${isEdit ? `<button class="btn secondary grow" type="button" id="cancelEditBtn">${t('cancel')}</button>` : ''}
         <button class="btn primary grow" type="submit">${t(isEdit ? 'save' : 'saveHabit')}</button>

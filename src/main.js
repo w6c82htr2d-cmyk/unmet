@@ -24,6 +24,7 @@ import { brandMarkSvg } from './lib/brand.js';
 import { authAvailable, initAuth, onUserChange } from './lib/auth.js';
 import { renderAuth, stopAuthTimers } from './pages/auth.js';
 import { showStorageWarning, storageWorks } from './lib/storageWarning.js';
+import { startReminderLoop } from './lib/reminders.js';
 
 const NAV_ITEMS = [
   { path: '/', icon: 'home', label: 'navHome' },
@@ -81,6 +82,7 @@ function renderShell() {
   });
 
   startRouter();
+  startReminderLoop();
 }
 
 // Another tab saved something: refresh this tab's page so it doesn't keep showing stale data.

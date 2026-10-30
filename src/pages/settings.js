@@ -1,4 +1,5 @@
 import { t, getLang, setLang } from '../i18n.js';
+import { getReminderSettings, saveReminderSettings, requestReminderPermission, permissionState, isAppleMobile, LEADS } from '../lib/reminders.js';
 import { getTheme, setTheme } from '../theme.js';
 import { localDateStr } from '../lib/dates.js';
 import { getProfile, saveProfile, exportAll, resetAll } from '../db.js';
@@ -77,6 +78,8 @@ export function renderSettings(root) {
         ${backupHtml()}
         <button class="btn secondary" id="resetBtn" style="color:var(--danger);">${t('resetData')}</button>
       </div>
+
+      ${remindersSectionHtml()}
 
       ${syncSectionHtml()}
 
@@ -176,6 +179,7 @@ export function renderSettings(root) {
   });
 
   wireSyncSection(root);
+  wireRemindersSection(root);
   wireAccountSection(root);
 }
 
@@ -284,6 +288,74 @@ function syncMetaHtml() {
 // Server error codes → friendly messages.
 function syncErrorText(err) {
   return t({ conflict: 'syncConflict', rate_limited: 'syncRateLimited', not_found: 'syncNotFound' }[err?.code] || 'syncError');
+}
+
+// ---------- Reminders (optional; browser notifications while Unmet is open) ----------
+let reminderMsg = '';
+
+function remindersSectionHtml() {
+  const st = permissionState();
+  const s = getReminderSettings();
+  const on = s.enabled && st === 'granted';
+  const apple = isAppleMobile();
+  return `
+    <section class="card col reminders-card" aria-labelledby="remindersHeading">
+      <h3 class="label-sm" id="remindersHeading">${t('remindersTitle')}</h3>
+      <p class="form-note">${t('remindersIntro')}</p>
+      ${st === 'unsupported' ? `<p class="form-note strong-note">${t(apple ? 'remindersApple' : 'remindersUnsupported')}</p>` : `
+        <label class="remind-row"><input type="checkbox" id="remindersToggle" ${on ? 'checked' : ''} ${st === 'denied' ? 'disabled' : ''} /> ${t('remindersToggle')}</label>
+        ${st === 'denied' ? `<p class="form-note strong-note">${t('remindersDenied')}</p>` : ''}
+        ${on ? `
+          <div class="label-sm" id="leadLabel">${t('remindersLeadLabel')}</div>
+          <div class="choice-row" role="radiogroup" aria-labelledby="leadLabel">
+            ${LEADS.map((n) => `<button type="button" class="choice ${s.lead === n ? 'on' : ''}" role="radio" aria-checked="${s.lead === n}" data-lead="${n}">${n ? t('remindersLeadN', { n }) : t('remindersLeadAtTime')}</button>`).join('')}
+          </div>
+          <button type="button" class="btn secondary sm" id="testReminderBtn">${t('remindersTest')}</button>
+        ` : ''}
+        ${apple ? `<p class="form-note">${t('remindersApple')}</p>` : ''}
+      `}
+      <ul class="form-note reminders-limits">
+        <li>${t('remindersLimitOpen')}</li>
+        <li>${t('remindersLimitPerHabit')}</li>
+        <li>${t('remindersLimitPrivate')}</li>
+      </ul>
+      ${reminderMsg ? `<div class="label-sm" role="status">${escapeHtml(reminderMsg)}</div>` : ''}
+    </section>
+  `;
+}
+
+function wireRemindersSection(root) {
+  const toggle = root.querySelector('#remindersToggle');
+  toggle?.addEventListener('change', async () => {
+    const s = getReminderSettings();
+    if (toggle.checked) {
+      const result = await requestReminderPermission();
+      s.enabled = result === 'granted';
+      reminderMsg = result === 'granted' ? t('remindersOnMsg') : result === 'denied' ? t('remindersDenied') : t('remindersNotAllowed');
+    } else {
+      s.enabled = false;
+      reminderMsg = t('remindersOffMsg');
+    }
+    saveReminderSettings(s);
+    renderSettings(root);
+  });
+  root.querySelectorAll('[data-lead]').forEach((b) => b.addEventListener('click', () => {
+    const s = getReminderSettings();
+    s.lead = Number(b.dataset.lead);
+    saveReminderSettings(s);
+    reminderMsg = '';
+    renderSettings(root);
+    root.querySelector(`[data-lead="${s.lead}"]`)?.focus();
+  }));
+  root.querySelector('#testReminderBtn')?.addEventListener('click', () => {
+    try {
+      new Notification(t('remindersTestTitle'), { body: t('remindersTestBody'), icon: '/favicon.svg' });
+      reminderMsg = t('remindersTestSent');
+    } catch {
+      reminderMsg = t('remindersTestFailed');
+    }
+    renderSettings(root);
+  });
 }
 
 function syncSectionHtml() {

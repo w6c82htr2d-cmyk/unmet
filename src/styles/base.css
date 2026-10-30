@@ -508,8 +508,8 @@ html[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
   max-width: var(--max-width); margin: 0 auto; padding: 40px 22px; gap: 20px;
 }
 .onboard-progress { display: flex; gap: 6px; }
-.onboard-progress .seg { flex: 1; height: 4px; border-radius: 4px; background: var(--card-strong); }
-.onboard-progress .seg.on { background: var(--accent); }
+.onboard-progress .ob-seg { flex: 1; height: 4px; border-radius: 4px; background: var(--card-strong); }
+.onboard-progress .ob-seg.on { background: var(--accent); }
 
 .goal-track-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (min-width: 640px) {
@@ -899,3 +899,34 @@ button:focus:not(:focus-visible) { outline: none; }
 .ag-done { display: inline-flex; vertical-align: -3px; margin-inline-end: 4px; }
 .ag-done svg { width: 16px; height: 16px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- Onboarding: routine kinds, habit ideas, summary ---------- */
+.onboard-wrap .back-row { align-self: flex-start; }
+.ob-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ob-kind {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 12px; min-height: 84px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
+}
+.ob-kind.selected { border-color: var(--accent); background: var(--accent-soft); }
+.ob-kind:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ob-kind-icon { color: var(--accent); display: flex; }
+.ob-kind-icon svg { width: 24px; height: 24px; }
+.ob-kind-name { font-size: 14px; font-weight: 700; }
+.ob-routine-form, .ob-habit-form { gap: 12px; }
+.ob-ideas { display: flex; flex-wrap: wrap; gap: 8px; }
+.ob-idea {
+  all: unset; box-sizing: border-box; cursor: pointer; min-height: 44px; padding: 10px 14px; border-radius: 22px;
+  border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.3;
+}
+.ob-idea.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.ob-idea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ob-preview { font-size: 13px; color: var(--text-muted); }
+.ob-preview:empty { display: none; }
+.ob-saved { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; border: 1.5px solid var(--accent); }
+.ob-saved svg { width: 18px; height: 18px; color: var(--accent); flex-shrink: 0; }
+.ob-summary { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.ob-summary li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.ob-summary strong { color: var(--text); font-size: 14px; }
+.ob-sum-icon { color: var(--accent); display: flex; margin-top: 2px; }
+.ob-sum-icon svg { width: 18px; height: 18px; }
+.onboard-wrap h1:focus, .onboard-wrap h2:focus { outline: none; }

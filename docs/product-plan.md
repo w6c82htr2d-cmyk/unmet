@@ -1,7 +1,7 @@
 # UNMET — Product & Codebase Audit and Phased Plan
 
-> Status: **proposal for approval.** Nothing in this document has been built unless it is marked
-> *done*. UNMET is in beta: no payments, paywall, trial countdown or subscription prompts, and every
+> Status: **living plan.** Phase 0, Phase 0b and the `/api/plan` hardening are *done*. Everything else
+> is a proposal awaiting approval. UNMET is in beta: no payments, paywall, trial countdown or subscription prompts, and every
 > feature stays free.
 >
 > Sources: the Final Product Development & UX Improvement Brief, the earlier UI/UX audit, and the
@@ -37,7 +37,7 @@ action → Track progress → Recognize patterns → Improve next week.
 
 | Brief part | Status |
 |---|---|
-| P2 Calendar bugs | Week alignment *done*; stale "synced" subtitle *done*; routine success card visible on mobile *done*; undo on habit delete *done*. **Still open:** time-zone date bug (§3), long Day view, date strip above the schedule, truncated titles, three overlapping add buttons, routines listed once per weekday, small tap targets, low contrast, event delete with no undo, import that overwrites without confirmation. |
+| P2 Calendar bugs | *Done:* Week alignment, stale subtitle, routine success card on mobile, Undo for habit, event and goal deletes, time-zone date bug, safe import, accessibility (text, contrast, 44px targets, labels, focus, reduced motion), dark default. **Still open (Phase 2):** long Day view, date strip above the schedule, truncated titles, three overlapping add buttons, routines listed once per weekday. |
 | P3 Login & accounts | Missing entirely. |
 | P4 Onboarding | Partly there: name → goals → routine guidance and a 3-step indicator exist. Missing: free-text goal, the routine prompt after *every* new routine, and the hand-off to Home. |
 | P5 Calendar | Day/Week exist. Missing: compact Day Overview, natural-language routine entry, a single "+ Add", grouped routines, safe event delete. |
@@ -132,7 +132,7 @@ goes to production without approval.
 | Phase | Contents | Approval needed for |
 |---|---|---|
 | **0** | Week alignment, routine success on mobile, habit delete Undo, stale subtitle | *Done* |
-| **0b — Critical fixes** | **Time-zone date fix** (local-date helpers everywhere). Confirmation plus automatic backup before importing a file. Undo for event and series deletion. Dark default for new users (existing light choices kept). Accessibility foundations: text ≥11px, 4.5:1 contrast, 44px targets, `aria-label`s, focus styles, reduced motion. Stale README and help text. | Go-ahead only. No new services or storage changes. |
+| **0b — Critical fixes** *(done)* | **Time-zone date fix** (local-date helpers everywhere). Confirmation plus automatic backup before importing a file. Undo for event and series deletion. Dark default for new users (existing light choices kept). Accessibility foundations: text ≥11px, 4.5:1 contrast, 44px targets, `aria-label`s, focus styles, reduced motion. Stale README and help text. | Approved and done. See `docs/security-audit.md`. |
 | **1a — Local data hardening** | Schema version, `updatedAt`/`deletedAt` on records, automatic local backups. Groundwork for sync. | Storage change |
 | **1b — Accounts & sync** | Provider setup, login screen, Apple + email + guest, sync layer, migration flow (§5), account section in Settings (export, delete, sign out) | Provider choice, Apple Developer account, email provider, migration strategy |
 | **2 — Onboarding, calendar, habit creation** | Goal step (choose or type), routine step, "Your routine is set!" after **every** new routine. **Compact Day Overview** as the default on phones (chronological agenda), with the hourly timeline one tap away. One "+ Add" (Routine / One-time). Natural-language quick entry with a deterministic parser and a confirmation preview. Routines grouped as "Classes · Sun, Tue, Thu · 08:00–10:50". No more truncated titles. Habit form as 3 questions (what / how long / when), with "before or after a routine", start/end anchor and custom offset hidden until needed. | Go-ahead |
@@ -174,7 +174,7 @@ provider and migration plan (1a/1b) are being decided.
 | AI endpoints open to scripting | Per-IP rate limit (Upstash, already in use) on `/api/split`; same for `/api/plan` once approved; Anthropic Console spend limit |
 | Sync-code data unencrypted and expiring | Document it in the app now; retire after accounts launch |
 | Vercel Hobby plan is for non-commercial use | Fine during beta; Vercel Pro once monetized |
-| Business-model length conflict: this brief says a 7-day UNMET+ trial, the latest decision says a 10-day full-access trial | Owner to confirm. `docs/business-model.md` currently reflects the 10-day decision. |
+| Business model | Settled: 10-day full-access trial, then a paid subscription, no free tier (`docs/business-model.md`). Not active during beta. |
 
 ## 8. Cost of new services
 
@@ -209,11 +209,19 @@ provider and migration plan (1a/1b) are being decided.
 - **Accessibility:** contrast and target-size checks with the Taste inspector, keyboard-only navigation, screen-reader labels.
 - **Never against real user data.** No secrets in tests or logs.
 
-## 10. Decisions needed
+## 10. Decisions
 
-1. Approve **Phase 0b** (critical fixes, including the time-zone bug).
-2. Choose an account provider: **Supabase** (recommended) or Firebase.
-3. Is the Apple Developer Program ($99/year) set up, or should email + guest ship first?
-4. Approve or adjust the migration strategy (§5), and the journal-sync default (sync journals, or keep them on the device).
-5. Approve the new `/api/split` AI endpoint, plus rate limiting on it and on `/api/plan`.
-6. Monetization length for the planning docs: 7-day UNMET+ (this brief) or 10-day full access (the latest decision)?
+**Made (2026-10-30):**
+- Phase 0b approved and done.
+- `/api/plan` hardening approved and done (model, key and responses unchanged).
+- Supabase preferred: schema, policies and migration design are in `docs/auth-architecture.md`, for review. Not implemented.
+- Email + guest first; Sign in with Apple at the iOS phase.
+- Migration strategy approved in principle; the migration itself is not approved yet.
+- Journal sync is optional for signed-in users; guests keep journals on their device.
+- Business model: 10-day full-access trial, then subscription; nothing active in beta.
+
+**Still open:**
+1. Review `docs/auth-architecture.md`: schema, RLS, migration and journal-sync implications.
+2. Approve fixes from `docs/security-audit.md` (sync-code hardening, security headers/CSP, storage-full handling, privacy page, dev-dependency updates).
+3. Approve the AI Task Splitter endpoint (Phase 3), now that `/api/plan` is secured.
+4. Approve Phase 2 (onboarding, calendar, habit creation).

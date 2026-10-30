@@ -4,8 +4,9 @@
 > countdown, paywall, payment, or subscription in the app, and every feature stays free for beta
 > testers. Building any part of billing requires explicit approval from the owner first.
 >
-> **Open question:** the Final Product Brief mentions a *7-day UNMET+ trial*. This document follows the
-> later decision of a *10-day full-access trial with no free tier*. Waiting for the owner to confirm which applies.
+> **Final decision (owner):** 10 days of full access to all features, then a paid subscription to
+> keep using UNMET. No permanent free tier, no payment details to start, no charge without the user
+> explicitly authorising a subscription. During beta every feature stays free.
 
 ## 1. The model in one line
 

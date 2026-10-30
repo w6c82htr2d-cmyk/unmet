@@ -35,3 +35,11 @@ export function setTheme(theme) {
 }
 
 document.documentElement.setAttribute('data-theme', currentTheme);
+
+// Another tab changed the theme: follow it without writing anything.
+export function applyThemeFromStorage() {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored !== 'light' && stored !== 'dark') return;
+  currentTheme = stored;
+  document.documentElement.setAttribute('data-theme', stored);
+}

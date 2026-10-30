@@ -1,7 +1,7 @@
 import './styles/base.css';
 import './theme.js';
 import { t } from './i18n.js';
-import { getTheme } from './theme.js';
+import { getTheme, applyThemeFromStorage } from './theme.js';
 import { isOnboarded, todayStr } from './db.js';
 import { icon } from './icons.js';
 import { registerRoute, setNotFound, onRouteChange, startRouter, navigate, currentPath, rerenderCurrentRoute } from './router.js';
@@ -85,6 +85,35 @@ function renderShell() {
   startRouter();
 }
 
+// Another tab saved something: refresh this tab's page so it doesn't keep showing stale data.
+// Writes were never at risk (every change re-reads storage first); this is about what's on screen.
+// The refresh waits while someone is mid-edit here, so typed text is never re-rendered away.
+function watchOtherTabs() {
+  let pending = false;
+  const editing = () => {
+    const root = document.getElementById('page-root');
+    if (!root || root.querySelector('#eventModalOverlay')) return true;
+    const active = document.activeElement;
+    if (active && root.contains(active) && active.matches('input, textarea, select, [contenteditable]')) return true;
+    return [...root.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea')]
+      .some((el) => el.value !== el.defaultValue);
+  };
+  const refresh = () => {
+    if (!pending || !isOnboarded() || editing()) return;
+    pending = false;
+    rerenderCurrentRoute();
+  };
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'unmet_theme') { applyThemeFromStorage(); return; }
+    if (e.key !== null && !e.key.startsWith('unmet_')) return;
+    if (e.key === 'unmet_lang' || e.key === 'unmet_backup' || e.key === 'unmet_probe') return;
+    pending = true;
+    refresh();
+  });
+  document.addEventListener('focusout', () => setTimeout(refresh, 0));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+}
+
 // A failed save throws StorageError out of whatever action was running (so it never shows as done)
 // and fires 'unmet:storage-failed'; here that becomes a visible warning instead of a silent failure.
 function watchStorageFailures() {
@@ -138,6 +167,7 @@ function boot() {
   document.documentElement.setAttribute('data-theme', getTheme());
   watchStorageFailures(); // first, so even onboarding saves are covered
   watchForNewDay();
+  watchOtherTabs();
   if (!isOnboarded()) {
     renderOnboarding(() => {
       renderShell();

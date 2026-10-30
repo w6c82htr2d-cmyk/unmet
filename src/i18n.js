@@ -27,7 +27,7 @@ export function t(key, vars) {
   let str = dict[key] !== undefined ? dict[key] : (translations.en[key] !== undefined ? translations.en[key] : key);
   if (vars) {
     Object.keys(vars).forEach((k) => {
-      str = str.replace(`{${k}}`, vars[k]);
+      str = str.split(`{${k}}`).join(vars[k]); // every occurrence
     });
   }
   return str;

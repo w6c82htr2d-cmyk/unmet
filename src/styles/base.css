@@ -930,3 +930,8 @@ button:focus:not(:focus-visible) { outline: none; }
 .ob-sum-icon { color: var(--accent); display: flex; margin-top: 2px; }
 .ob-sum-icon svg { width: 18px; height: 18px; }
 .onboard-wrap h1:focus, .onboard-wrap h2:focus { outline: none; }
+.insight-head { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.insight-idea { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.insight-confirm { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border); }
+.see-all-insights { align-self: center; width: auto; margin-top: -8px; }
+.insights { gap: 14px; }

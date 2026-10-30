@@ -3,6 +3,9 @@
 > **Status: proposal only. UNMET is in beta.** Nothing in this document is active. There is no trial
 > countdown, paywall, payment, or subscription in the app, and every feature stays free for beta
 > testers. Building any part of billing requires explicit approval from the owner first.
+>
+> **Open question:** the Final Product Brief mentions a *7-day UNMET+ trial*. This document follows the
+> later decision of a *10-day full-access trial with no free tier*. Waiting for the owner to confirm which applies.
 
 ## 1. The model in one line
 
@@ -13,16 +16,16 @@ when the trial ends, and user data is never deleted or held hostage.
 | Rule | How it is met |
 |---|---|
 | No payment details to start | Trial starts when the account is created. No card, no Apple purchase sheet. |
-| Every feature for all 10 days | Trial users get the same entitlement as subscribers: AI, insights, Weekly Wrapped, everything. |
+| Every feature for all 10 days | Trial users get the same entitlement as subscribers: AI, insights, Your Week, Unmet, everything. |
 | No permanent free tier | After day 10 the app goes into a *Paused* state (section 5). Tracking, journaling, AI and calendar editing stop until the user subscribes. |
 | No automatic charge at trial end | Impossible by design: no payment method is collected during the trial, and on iOS no Apple introductory offer is used. |
 | Users must choose to subscribe | Subscribing is a separate, explicit step: Stripe Checkout on the web, the StoreKit purchase sheet on iOS. |
 | Monthly and annual plans | Two plans: **UNMET Monthly** and **UNMET Annual**. |
 | Native In-App Purchase on iOS | StoreKit 2 auto-renewable subscriptions. |
 | Apple Pay on the web | Stripe Checkout shows Apple Pay on eligible devices and browsers (and Google Pay, plus cards). |
-| Data kept after the trial | Nothing is deleted. Habits, history, journals, events, plans and past Wrapped weeks all stay. |
+| Data kept after the trial | Nothing is deleted. Habits, history, journals, events, plans and past weekly recaps all stay. |
 | Always available, even without a subscription | Account settings, data export, subscription management, restore purchases, account deletion, privacy policy, support, sign out, language and theme. |
-| At least one Weekly Wrapped in the trial | The first Wrapped, "Your first week", is generated on trial day 7 (section 4). |
+| At least one Your Week, Unmet in the trial | The first Your Week, Unmet recap, "Your first week", is generated on trial day 7 (section 4). |
 | Safeguards that don't get in the way | Fair-use limits set well above normal use, and enforced on the server (section 7). |
 
 Naming: with no free tier there is no "UNMET+". The product is just **UNMET**, sold as
@@ -77,18 +80,18 @@ come right after it.
 | 1 | Welcome. First routine and first stacked habit (existing guidance). |
 | 2 | One in-context hint: try "Turn into a plan" in the free-form journal. |
 | 3–5 | Hints for Task Splitter, insights and Day/Week calendar, each shown once and only if unused. |
-| **7** | **"Your first week" Weekly Wrapped** is generated and highlighted on Home. |
+| **7** | **"Your first week" Your Week, Unmet** is generated and highlighted on Home. |
 | 8 | "3 days left": an in-app card (plus email if allowed) with both plans, prices, renewal terms and cancellation terms. |
 | 9 | "Your trial ends tomorrow" reminder. |
 | 10 | The trial runs **through the end of day 10 in the user's own time zone**. After that, the Paused state starts. |
 | After | One follow-up email around day 13. No ongoing nagging. |
 
-### Making sure there's a Weekly Wrapped during the trial
+### Making sure there's a Your Week, Unmet during the trial
 
-- **The first Wrapped is tied to the trial start, not the calendar.** It is generated at the end of the user's day 7 and covers days 1–7. Every 10-day trial gets one, three days before the trial ends, which makes it a natural point to decide.
-- **Thin weeks still get a Wrapped.** With little data (for example fewer than 3 active days), it still appears, with an encouraging summary instead of empty charts.
+- **The first Your Week, Unmet recap is tied to the trial start, not the calendar.** It is generated at the end of the user's day 7 and covers days 1–7. Every 10-day trial gets one, three days before the trial ends, which makes it a natural point to decide.
+- **Thin weeks still get a recap.** With little data (for example fewer than 3 active days), it still appears, with an encouraging summary instead of empty charts.
 - **It gets surfaced if missed.** If it hasn't been opened by day 8, it is shown again on Home and in the day-8 reminder.
-- **Later Wrapped weeks** come out weekly on the user's chosen day (default Sunday).
+- **Later weekly recaps** come out weekly on the user's chosen day (default Sunday).
 
 ## 5. When the trial ends: the Paused state (data kept)
 
@@ -98,10 +101,10 @@ come right after it.
 - Subscription plans, subscribe, restore purchases, manage subscription
 - Account deletion (section 6)
 - Privacy policy, Terms, help and support contact
-- **Recommended:** read-only viewing of the user's own habits, history, journals and past Wrapped weeks. Seeing your own data isn't a free tier, and it builds trust (owner decision).
+- **Recommended:** read-only viewing of the user's own habits, history, journals and past weekly recaps. Seeing your own data isn't a free tier, and it builds trust (owner decision).
 
 **Paused until the user subscribes:**
-- Checking off habits, new journal entries, calendar editing, Task Splitter, AI features, new insights, new Wrapped weeks
+- Checking off habits, new journal entries, calendar editing, Task Splitter, AI features, new insights, new weekly recaps
 
 **Data rules:**
 - Nothing is deleted, locked away or downgraded. The data stays on the device and in any sync storage.
@@ -145,8 +148,8 @@ UNMET server (Vercel functions)
 
 **How access is enforced:**
 - The server computes the state. The app receives a **short-lived signed entitlement token** (about 15 minutes, extended offline for up to 3 days so a flaky connection never blocks normal use).
-- **Every premium server request re-checks access on the server:** AI, Weekly Wrapped generation, deeper insights and sync. Editing the app's code can't unlock server features.
-- **Honest limit:** UNMET is local-first, so habits and journals live in the browser. Gating features that run entirely on the device is a deterrent, not real security. A determined person could patch the web app to keep using local tracking. This is accepted on purpose to keep journals private. The valuable, costly parts (AI, Wrapped, insights, sync) run on the server, so they are properly protected.
+- **Every premium server request re-checks access on the server:** AI, Your Week, Unmet generation, deeper insights and sync. Editing the app's code can't unlock server features.
+- **Honest limit:** UNMET is local-first, so habits and journals live in the browser. Gating features that run entirely on the device is a deterrent, not real security. A determined person could patch the web app to keep using local tracking. This is accepted on purpose to keep journals private. The valuable, costly parts (AI, weekly recaps, insights, sync) run on the server, so they are properly protected.
 - **iOS purchases:** each StoreKit purchase carries an `appAccountToken` equal to the UNMET user id. The app sends Apple's signed transaction to the server, which verifies it before granting access. Server notifications keep renewals, refunds and cancellations up to date.
 
 **The beta switch:** a server setting `MONETIZATION_MODE=beta` gives everyone `beta` (full access) and
@@ -171,7 +174,7 @@ hides all trial and pricing screens. Changing it to `live` is a launch decision 
 |---|---|---|
 | Journal → plan | about $0.0025 (worst case $0.0064) | about $0.08 |
 | AI task splitting | about $0.003 | about $0.05 |
-| Weekly Wrapped reflection | about $0.01 | about $0.04 |
+| Your Week, Unmet reflection | about $0.01 | about $0.04 |
 | Insight summaries (cached daily) | about $0.003 | about $0.10 |
 | **Total** | | **about $0.25–$0.50** (worst case at the limits: about $2) |
 
@@ -182,7 +185,7 @@ hides all trial and pricing screens. Changing it to `live` is a launch decision 
 - **Fair-use limits:**
   - journal → plan: 20 per day
   - AI task splitting: 20 per day
-  - Wrapped: generated once per week and cached, with 2 regenerations
+  - Your Week, Unmet: generated once per week and cached, with 2 regenerations
   - insights: cached daily
   - all AI features together: 300 calls per month
 - **Existing request limits stay:** at most 4,000 input characters and 1,024 output tokens per request.
@@ -206,7 +209,7 @@ hides all trial and pricing screens. Changing it to `live` is a launch decision 
 
 1. **Does 10 days reach the "aha" moment?**
    - Track the share of beta users active on day 7 and day 10.
-   - Track how many reach their first Wrapped and log 3 or more check-in days in their first 10 days.
+   - Track how many reach their first Your Week, Unmet recap and log 3 or more check-in days in their first 10 days.
    - This needs privacy-friendly event counts, either in Upstash or PostHog's free tier (owner choice).
 2. **Ask testers.**
    - Short price-sensitivity survey with 20–50 testers.
@@ -222,7 +225,7 @@ hides all trial and pricing screens. Changing it to `live` is a launch decision 
 - **10 days of everything, free. No card.** Then UNMET Monthly or UNMET Annual. *(Prices under test: $4.99/month or $34.99/year.)*
 - **Two payment paths.** Web through Stripe, with Apple Pay. iOS through the App Store.
 - **Trust as a feature.** No automatic charges after the trial, data is never held hostage, and you can export or delete any time.
-- **Built-in conversion moment.** Every trial includes a personal Weekly Wrapped on day 7.
+- **Built-in conversion moment.** Every trial includes a personal Your Week, Unmet on day 7.
 
 **Unit economics** (per subscriber, after platform fees and AI at about $0.40/month; excludes tax, VAT and hosting):
 
@@ -241,7 +244,7 @@ hides all trial and pricing screens. Changing it to `live` is a launch decision 
 | 10% | 100 | about $395 |
 | 15% | 150 | about $593 |
 
-**Metrics we'll report:** trial starts, share of trials that reach the first Wrapped, trial → paid,
+**Metrics we'll report:** trial starts, share of trials that reach the first Your Week, Unmet recap, trial → paid,
 annual mix, month-2 retention, refund rate, AI cost per subscriber.
 
 ## 12. Open decisions for the owner

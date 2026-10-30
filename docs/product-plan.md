@@ -1,7 +1,7 @@
 # UNMET — Product & Codebase Audit and Phased Plan
 
-> Status: **living plan.** Phase 0, Phase 0b and the `/api/plan` hardening are *done*. Everything else
-> is a proposal awaiting approval. UNMET is in beta: no payments, paywall, trial countdown or subscription prompts, and every
+> Status: **living plan.** The roadmap and its priority order are in §6. Each major phase is approved
+> by the owner before it starts. UNMET is in beta: no payments, paywall, trial countdown or subscription prompts, and every
 > feature stays free.
 >
 > Sources: the Final Product Development & UX Improvement Brief, the earlier UI/UX audit, and the
@@ -124,22 +124,105 @@ Nothing moves to the cloud until this strategy is approved.
 6. **Account deletion** removes the account and all cloud rows immediately. Data on the device stays unless the user also chooses "erase this device". The screen explains exactly what happens and offers an export first.
 7. **Tests use synthetic snapshots** covering: legacy habits without `createdAt`, broken stacked links, large journals, duplicates, and two devices editing the same record.
 
-## 6. Phased implementation plan
+## 6. Roadmap (priority order, updated 2026-10-30)
 
-Each phase is separate commits, tested on its own, and pushed to the feature branch only. Nothing
-goes to production without approval.
+**Rules for every phase:**
+- Small, testable commits on the feature branch.
+- **Before each major phase starts, a summary of the planned changes goes to the owner for approval.**
+- Nothing is deployed to production, and nothing is merged into `main`, without explicit approval.
+- UNMET stays **completely free during beta**: no payments, checkout, paywalls, trial countdowns or locked features.
+- **Future business model** (planning only, see `docs/business-model.md`): 10 days of full access with no payment details, then a paid subscription to continue; no permanent free tier.
 
-| Phase | Contents | Approval needed for |
+### Completed
+| Phase | Contents |
+|---|---|
+| 0 | Week alignment, routine success card on mobile, habit delete Undo, stale subtitle |
+| 0b | Time-zone date fix, safe import with backup/restore, Undo for event and goal deletes, dark default for new users, accessibility (text ≥11px, contrast, 44px targets, labels, focus, reduced motion) |
+| Security 1 | `/api/plan` rate limits, validation, safe errors, usage monitoring; stored-XSS fix |
+| Security 2 | Storage-failure warnings; sync-code hardening (12-char codes, guessing lockout, conflict protection, delete, visible expiry); CSP and security headers; no theme flash; live updates across tabs; privacy policy **draft** |
+
+### Track 1 (current priority): accounts and automatic sync
+Goal: open UNMET on a laptop, create habits, sign in on a phone and see the same progress
+automatically. Design: `docs/auth-architecture.md`. Sign in with Apple comes later, at the iOS phase.
+
+| Phase | Contents | Approval gate |
 |---|---|---|
-| **0** | Week alignment, routine success on mobile, habit delete Undo, stale subtitle | *Done* |
-| **0b — Critical fixes** *(done)* | **Time-zone date fix** (local-date helpers everywhere). Confirmation plus automatic backup before importing a file. Undo for event and series deletion. Dark default for new users (existing light choices kept). Accessibility foundations: text ≥11px, 4.5:1 contrast, 44px targets, `aria-label`s, focus styles, reduced motion. Stale README and help text. | Approved and done. See `docs/security-audit.md`. |
-| **1a — Local data hardening** | Schema version, `updatedAt`/`deletedAt` on records, automatic local backups. Groundwork for sync. | Storage change |
-| **1b — Accounts & sync** | Provider setup, login screen, Apple + email + guest, sync layer, migration flow (§5), account section in Settings (export, delete, sign out) | Provider choice, Apple Developer account, email provider, migration strategy |
-| **2 — Onboarding, calendar, habit creation** | Goal step (choose or type), routine step, "Your routine is set!" after **every** new routine. **Compact Day Overview** as the default on phones (chronological agenda), with the hourly timeline one tap away. One "+ Add" (Routine / One-time). Natural-language quick entry with a deterministic parser and a confirmation preview. Routines grouped as "Classes · Sun, Tue, Thu · 08:00–10:50". No more truncated titles. Habit form as 3 questions (what / how long / when), with "before or after a routine", start/end anchor and custom offset hidden until needed. | Go-ahead |
-| **3 — Task Splitter** | New `/api/split` function (separate file; `api/plan.js` untouched; same key and model) returning concrete steps with completion criteria and durations, ordered smallest-first, with matrix labels. Optional "What's making this difficult?" + free text. Each step: **Add as Task / Make it a Habit / Schedule in Calendar**, pre-filled and confirmed before saving. The templates stay as an offline fallback. Speech-to-text kept. | New AI endpoint and its cost; rate limiting |
-| **4 — Habit experience & dashboard** | Home order: greeting → today's habits (big checkboxes, one tap, subtle animation, Undo) → daily progress → streaks → weekly consistency → one insight. Per-habit 7-day dots that tell **done, missed and not-scheduled** apart. Encouraging "4 of last 5" framing next to streaks. New pattern engine on habit history: deterministic rules, minimum observations, dismissible, explainable, no AI calls. Fewer, clearer charts; no emoji. | Go-ahead |
-| **5 — Your Week, Unmet** | Weekly metrics in the local time zone that respect scheduled days and handle edited or deleted habits. Six animated slides: Review → Wins → Patterns → Comeback (only when the data supports it) → One Thing to Improve (applied only after confirmation) → Keep Becoming (share image with no journal text or calendar details). Subtle Home card, history of past weeks. Replaces `/insight`. No AI needed. | Go-ahead |
-| **6 — Reminders & iOS prep** | Evaluate reminders. Write the Capacitor iOS architecture plan (below). | Any paid scheduling service |
+| **A** | Review the architecture against the current code; prepare the Supabase schema, Row Level Security policies and local tests | Done in this phase (prepared locally, nothing provisioned) |
+| **B** | Login/signup screen ("Meet your unmet potential."): Continue with email, Create an account, Sign in, Continue as guest; email verification; logout; session persistence; English/Arabic, dark, accessible | Owner creates the Supabase project and approves the auth settings |
+| **C** | Cloud storage and automatic sync: queue local changes, push/pull, conflict rules, sync status, offline. **Journal sync optional and OFF by default**; guests keep journals local | Applying the schema migration to the owner's project |
+| **D** | Guest → account migration: backup, preview, explicit consent, ids and links preserved, reconciliation options, cloud copy verified, local data kept | Approval before any real data is migrated |
+| **E** | Test sync, security and offline behaviour with synthetic accounts on two separate sessions or devices; RLS penetration tests | — |
+| **F** | Retire sync codes safely: stop new codes → migration path for code holders → retire the endpoint after a notice period; Upstash data not deleted early | Each retirement step |
+
+### Track 2 (after Track 1 is complete and tested): every improvement from the master brief and user feedback
+None of these requirements is dropped; each becomes one or more approved phases.
+
+1. **Onboarding:** make the journey from recurring routines to habits intuitive.
+   - Goal step: pick or type a goal, quick and optional.
+   - "Start with your existing routine" step (recommended, not required).
+   - "Your routine is set! Ready to build a habit around it?" after **every** new routine, immediately visible on mobile, with the routine preselected for stacking.
+   - Hand-off to Home with today's habits.
+   - No repeated tutorials for returning users.
+2. **Calendar:**
+   - Easier mobile navigation; no duplicate date controls.
+   - **Compact Day Overview** (a chronological agenda), with the detailed timeline kept one tap away.
+   - Full event names; correct durations.
+   - One clear "+ Add" (Routine / One-time).
+   - Recurring routines shown once, grouped as "Classes · Sun, Tue, Thu · 08:00–10:50".
+   - Safe delete (Undo is done).
+   - **Natural-language entry** ("Classes every Sunday, Tuesday and Thursday from 8 AM to 11 AM"): deterministic parsing, an editable preview (title, days, times, recurrence, time zone) and confirmation before saving; manual entry kept.
+   - No external calendar import in this phase.
+3. **Habit stacking:**
+   - A 3-question flow: what / how long / when (every day, specific days, before or after a routine).
+   - Advanced settings revealed only when needed.
+   - Multiple events and series supported; occurrences only on real event dates.
+   - Start or end anchor; configurable offsets; duration; preview before saving.
+   - Links follow edited events; no duplicate occurrences.
+   - Everything editable without recreating the habit; history preserved.
+4. **AI Task Splitter** (new `/api/split`, separate from the untouched `/api/plan`, same key and model):
+   - Specific, executable steps with measurable completion criteria and realistic durations.
+   - Smallest useful next action first; logical order.
+   - No generic advice and no invented resources.
+   - Importance/urgency matrix kept and explained.
+   - Optional "What's making this difficult?" (options + free text).
+   - Per step: **Add as Task / Make it a Habit / Schedule in Calendar**, pre-filled and confirmed before saving.
+   - Speech-to-text kept; the templates stay as an offline fallback.
+5. **Dashboard:** Home order is greeting and date → today's habits → daily progress → streaks → weekly consistency → one insight.
+   - Obvious one-tap checkmarks with a subtle animation and Undo.
+   - Per-habit 7-day history that tells **done / missed / not scheduled** apart.
+   - Accurate streaks with encouraging framing; a missed day never invalidates past progress.
+   - Fewer, clearer charts; premium visual design (WHOOP/Bevel/Oura/Linear/Apple quality, UNMET's own identity).
+   - UNMET blue primary, with teal and amber only where meaningful.
+   - Dark and light, Arabic RTL.
+6. **Pattern detection:**
+   - Based on real habit history, with minimum observations before claiming a pattern.
+   - Explainable, non-judgemental, dismissible.
+   - Practical adjustments, only applied after confirmation.
+   - No psychological guesses; no unnecessary AI calls.
+7. **Your Week, Unmet:** one weekly experience (no separate CEO check-in), six animated slides:
+   1. Your Week in Review
+   2. Your Wins
+   3. Your Patterns
+   4. Your Comeback (only when the data supports it)
+   5. One Thing to Improve (applied only with confirmation)
+   6. Keep Becoming (shareable, with no journal or calendar details)
+   - Correct local week boundaries; handles edited or deleted habits and thin data.
+   - Subtle Home card, history of past weeks, never interrupts.
+   - Deep navy, blue, teal and violet with restrained warm accents.
+8. **Reminders:**
+   - Optional per-habit reminders at scheduled times, easy to turn off, never excessive.
+   - Browser limits explained honestly.
+   - Native local notifications in the future iOS app; no paid infrastructure without approval.
+9. **Journaling:** Morning Intention, Evening Reflection and Free-Style Journaling are **kept**, with speech-to-text and existing entries preserved. Readability improvements only; no unnecessary new features.
+
+**Later, planning only:**
+- **iOS (Capacitor) preparation and Sign in with Apple.** Do not start the conversion yet.
+- **Subscriptions** per `docs/business-model.md`. Not implemented during beta.
+
+**Open security items** (from `docs/security-audit.md`):
+- Publish the privacy policy after owner review.
+- Vite major upgrade.
+- Encrypted sync codes: **dropped**, because sync codes are being retired in favour of accounts.
 
 **Reminders:**
 - **Websites can't reliably notify at a set time when they're closed.** Real push needs a service worker plus a server scheduler.
@@ -157,8 +240,7 @@ goes to production without approval.
 - **Offline:** already local-first.
 - **App Store requirements:** a privacy "nutrition label", in-app account deletion, and an app that feels native rather than a wrapped website.
 
-**Order note:** Phases 2, 4 and 5 only use local data. They can go ahead while the account
-provider and migration plan (1a/1b) are being decided.
+**Order note:** the owner chose to finish Track 1 (accounts and sync) before Track 2.
 
 ## 7. Technical risks and dependencies
 
@@ -211,17 +293,14 @@ provider and migration plan (1a/1b) are being decided.
 
 ## 10. Decisions
 
-**Made (2026-10-30):**
-- Phase 0b approved and done.
-- `/api/plan` hardening approved and done (model, key and responses unchanged).
-- Supabase preferred: schema, policies and migration design are in `docs/auth-architecture.md`, for review. Not implemented.
+**Made:**
+- Phases 0, 0b and both security phases approved and done.
+- Supabase approved as the auth and database platform, subject to the Phase A review.
 - Email + guest first; Sign in with Apple at the iOS phase.
-- Migration strategy approved in principle; the migration itself is not approved yet.
-- Journal sync is optional for signed-in users; guests keep journals on their device.
-- Business model: 10-day full-access trial, then subscription; nothing active in beta.
+- **Priority:** accounts and automatic sync (Track 1, phases A–F) first; then every Track 2 improvement.
+- Journal sync is optional, **off by default**; existing entries are never uploaded without explicit permission; guests' journals stay local.
+- The migration strategy is approved in principle; real data migration needs approval at the time.
+- Sync codes: keep working until the replacement is tested, then retire them in steps (Phase F).
+- Business model: 10-day full access, then subscription, no free tier; nothing active during beta.
 
-**Still open:**
-1. Review `docs/auth-architecture.md`: schema, RLS, migration and journal-sync implications.
-2. Approve fixes from `docs/security-audit.md` (sync-code hardening, security headers/CSP, storage-full handling, privacy page, dev-dependency updates).
-3. Approve the AI Task Splitter endpoint (Phase 3), now that `/api/plan` is secured.
-4. Approve Phase 2 (onboarding, calendar, habit creation).
+**Still open:** see the end of the latest phase report.

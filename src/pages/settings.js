@@ -1,5 +1,6 @@
 import { t, getLang, setLang } from '../i18n.js';
 import { getTheme, setTheme } from '../theme.js';
+import { localDateStr } from '../lib/dates.js';
 import { getProfile, saveProfile, exportAll, importAll, resetAll } from '../db.js';
 import { icon } from '../icons.js';
 import { navigate } from '../router.js';
@@ -115,7 +116,7 @@ export function renderSettings(root) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `unmet-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `unmet-export-${localDateStr()}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();

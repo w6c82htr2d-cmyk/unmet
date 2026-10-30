@@ -11,12 +11,14 @@ import { detectPattern, patternSentence, weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
 import { consumePendingHabitEdit, consumePendingAddHabit } from '../lib/pendingEdit.js';
 import { showUndoToast } from '../lib/undoToast.js';
+import { addDays, dateForDisplay } from '../lib/dates.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
 let dismissedInsight = false;
 let editingHabitId = null;
 let selectedDate = todayStr();
+let lastSeenToday = todayStr(); // lets a page left open past midnight follow the date forward
 let justToggledId = null;
 let addDraft = freshDraft();
 let editDraft = {};
@@ -64,19 +66,16 @@ function weekStrip() {
   const dayLetters = lang === 'ar'
     ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']
     : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(today.getDate() - today.getDay());
+  const today = todayStr();
+  const start = addDays(today, -dayOfWeek(today));
   let html = '<div class="week-strip">';
   for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const isToday = d.toDateString() === today.toDateString();
+    const dateStr = addDays(start, i);
+    const isToday = dateStr === today;
     const isSelected = dateStr === selectedDate;
     html += `<button class="day-pill ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
       <div class="d">${dayLetters[i]}</div>
-      <div class="n">${d.getDate()}${isToday ? '<span class="dot"></span>' : ''}</div>
+      <div class="n">${Number(dateStr.slice(8, 10))}${isToday ? '<span class="dot"></span>' : ''}</div>
     </button>`;
   }
   html += '</div>';
@@ -103,6 +102,11 @@ function toMinutes(hhmm) {
 }
 
 export function renderHome(root) {
+  const now = todayStr();
+  if (now !== lastSeenToday) {
+    if (selectedDate === lastSeenToday) selectedDate = now;
+    lastSeenToday = now;
+  }
   const pendingEditId = consumePendingHabitEdit();
   if (pendingEditId) {
     const h = getHabits().find((x) => x.id === pendingEditId);
@@ -660,7 +664,7 @@ function previewIndepHtml(days, time, duration) {
 }
 
 function fmtPreviewDate(dateStr) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return dateForDisplay(dateStr).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function habitRowHtml(habit) {

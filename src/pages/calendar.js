@@ -6,6 +6,7 @@ import {
   habitLinkedEventTitles, updateHabit, getCalendarView, setCalendarView, getHabits, hasRoutines,
 } from '../db.js';
 import { weekdayKey } from '../lib/patterns.js';
+import { dateForDisplay } from '../lib/dates.js';
 import { navigate } from '../router.js';
 import { requestHabitEdit, requestAddHabit } from '../lib/pendingEdit.js';
 
@@ -24,6 +25,7 @@ const MOVE_CANCEL_PX = 8;
 let viewMode = getCalendarView(); // 'day' | 'week' — persisted so it's remembered across visits
 let weekStart = startOfWeek(todayStr());
 let selectedDate = todayStr();
+let lastSeenToday = todayStr(); // lets a page left open past midnight follow the date forward
 let showForm = false;
 let formType = 'once';
 let selectedWeekdays = [];
@@ -66,7 +68,7 @@ function startOfWeek(dateStr) {
 }
 
 function fmtShort(dateStr) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short', day: 'numeric' });
+  return dateForDisplay(dateStr).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short', day: 'numeric' });
 }
 
 // Greedy interval-graph column layout so overlapping blocks sit side by side instead of stacking
@@ -180,7 +182,7 @@ function dayViewHtml(rows) {
 }
 
 function weekViewHtml(days) {
-  const monthFmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short' });
+  const monthFmt = (d) => dateForDisplay(d).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short' });
   return `
     <div class="week-grid-scroll">
       <div class="week-grid-inner">
@@ -216,6 +218,16 @@ function guidancePhase() {
 }
 
 export function renderCalendar(root) {
+  // If the app was left open across midnight and the user was still looking at "today", move to
+  // the new today (and its week) instead of leaving them on yesterday.
+  const now = todayStr();
+  if (now !== lastSeenToday) {
+    if (selectedDate === lastSeenToday) {
+      selectedDate = now;
+      weekStart = startOfWeek(now);
+    }
+    lastSeenToday = now;
+  }
   const rows = dayRows(selectedDate);
   const allEvents = getEvents();
   const days = weekDaysMeta();
@@ -247,7 +259,7 @@ export function renderCalendar(root) {
       <div class="row between">
         <button class="btn secondary sm" id="prevBtn">${icon.back}</button>
         <span class="label-sm" style="font-weight:700; font-size:12.5px; color:var(--text);" dir="${getLang() === 'ar' ? 'rtl' : 'ltr'}">${viewMode === 'day'
-          ? new Date(selectedDate + 'T00:00:00').toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+          ? dateForDisplay(selectedDate).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })
           : `${fmtShort(weekStart)} – ${fmtShort(addDays(weekStart, 6))}`}</span>
         <button class="btn secondary sm" id="nextBtn" style="transform:scaleX(-1);">${icon.back}</button>
       </div>

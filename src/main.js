@@ -2,9 +2,9 @@ import './styles/base.css';
 import './theme.js';
 import { t } from './i18n.js';
 import { getTheme } from './theme.js';
-import { isOnboarded } from './db.js';
+import { isOnboarded, todayStr } from './db.js';
 import { icon } from './icons.js';
-import { registerRoute, setNotFound, onRouteChange, startRouter, navigate } from './router.js';
+import { registerRoute, setNotFound, onRouteChange, startRouter, navigate, currentPath, rerenderCurrentRoute } from './router.js';
 import { renderOnboarding } from './pages/onboarding.js';
 import { renderHome } from './pages/home.js';
 import { renderCalendar } from './pages/calendar.js';
@@ -82,6 +82,21 @@ function renderShell() {
   });
 
   startRouter();
+  watchForNewDay();
+}
+
+// When the tab comes back after midnight, refresh the pages whose content is "today" so they
+// don't keep showing yesterday. Only read-mostly pages, so no half-typed form is re-rendered away.
+function watchForNewDay() {
+  let lastDay = todayStr();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const now = todayStr();
+    if (now === lastDay) return;
+    lastDay = now;
+    const [base] = currentPath().split('?');
+    if (base === '/' || base === '/journal') rerenderCurrentRoute();
+  });
 }
 
 function renderBottomNav() {

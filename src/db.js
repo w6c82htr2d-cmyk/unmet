@@ -1,3 +1,8 @@
+import { todayStr, dayOfWeek, addDays } from './lib/dates.js';
+
+// Re-exported so existing imports from db.js keep working; the implementations live in lib/dates.js.
+export { todayStr, dayOfWeek, addDays };
+
 const KEYS = {
   profile: 'unmet_profile',
   habits: 'unmet_habits',
@@ -24,22 +29,6 @@ function write(key, value) {
 
 export function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-}
-
-export function todayStr(offsetDays = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
-}
-
-export function dayOfWeek(dateStr) {
-  return new Date(dateStr + 'T00:00:00').getDay();
-}
-
-export function addDays(dateStr, n) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
 }
 
 export function addMinutesToTime(hhmm, minutes) {

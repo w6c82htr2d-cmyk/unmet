@@ -36,6 +36,13 @@ function handleRoute() {
   window.scrollTo(0, 0);
 }
 
+// Re-render the current page in place (no navigation event, no scroll reset).
+export function rerenderCurrentRoute() {
+  const [base] = currentPath().split('?');
+  const renderFn = routes[base] || notFoundHandler;
+  renderFn(document.getElementById('page-root'));
+}
+
 export function startRouter() {
   window.addEventListener('hashchange', handleRoute);
   handleRoute();

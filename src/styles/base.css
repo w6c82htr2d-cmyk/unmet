@@ -1012,3 +1012,16 @@ html[lang="ar"] .rsc-title { font-family: var(--font-ar); }
 .recap-confirm { display: flex; flex-direction: column; gap: 8px; }
 .icon-btn.flip-x { transform: scaleX(-1); }
 .recap-nav .btn:disabled { opacity: 1; color: var(--text-muted); cursor: default; }
+
+/* ---------- Task Splitter ---------- */
+.split-form { gap: 10px; }
+.split-personalize summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--accent); }
+.challenge-chip { min-height: 40px; }
+.goal-title { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.split-source { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.split-source svg { width: 14px; height: 14px; color: var(--accent); }
+.step-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.step-label { font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.step-meta { font-size: 12px; color: var(--text-muted); }
+.convert-options { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 4px; }
+.convert-options .chip { flex: 1 1 auto; justify-content: center; min-height: 44px; }

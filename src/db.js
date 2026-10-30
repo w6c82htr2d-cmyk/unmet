@@ -707,6 +707,14 @@ export function toggleSubtask(goalId, subtaskId) {
   saveGoals(goals);
 }
 
+export function updateSubtask(goalId, subtaskId, updates) {
+  const goals = getGoals();
+  const st = goals.find((g) => g.id === goalId)?.subtasks.find((s) => s.id === subtaskId);
+  if (!st) return;
+  Object.assign(st, updates, { lastTouched: new Date().toISOString() });
+  saveGoals(goals);
+}
+
 // Returns the removed goal and its position so the caller can offer an exact undo.
 export function removeGoal(id) {
   const goals = getGoals();

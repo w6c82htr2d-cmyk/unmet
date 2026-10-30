@@ -147,3 +147,18 @@ test(`[${TZ}] 7-day history tells done, missed, pending and not-scheduled apart`
   const created = { ...daily, createdAt: today, history: {} };
   assert.equal(db.habitDayStates(created, 3, today)[0].state, 'off'); // before the habit existed
 });
+
+test(`[${TZ}] changing a routine's days keeps kept days' ids, adds and drops the rest in one save`, () => {
+  db.setRoutineDays('cls', [0, 1, 2]); // drop Thu, add Mon
+  const rows = db.getEvents().filter((e) => e.seriesId === 'cls' && e.type === 'weekly');
+  assert.deepEqual(rows.map((e) => e.dayOfWeek).sort(), [0, 1, 2]);
+  assert.ok(rows.some((e) => e.id === 'c0') && rows.some((e) => e.id === 'c2') && !rows.some((e) => e.id === 'c4'));
+  const mon = rows.find((e) => e.dayOfWeek === 1);
+  assert.equal(mon.title, 'Classes');
+  assert.equal(mon.start, '08:00');
+  assert.equal(mon.startDate, '2026-09-01');
+  // The stacked habit now follows only the days that still exist; nothing else changed.
+  assert.equal(db.getEvents().filter((e) => e.seriesId !== 'cls').length, 2);
+  db.setRoutineDays('cls', []); // refusing to delete everything by accident
+  assert.equal(db.getEvents().filter((e) => e.seriesId === 'cls').length, 3);
+});

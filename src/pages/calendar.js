@@ -4,13 +4,14 @@ import {
   getEvents, addEvent, addEvents, removeEvent, removeEventSeries, updateEvent, updateEventSeries, updateEventOccurrence,
   removeEventOccurrence, eventsForDate, habitsForDate, todayStr, dayOfWeek, addDays, uid,
   habitLinkedEventTitles, updateHabit, getCalendarView, setCalendarView, getHabits, hasRoutines,
-  snapshotEventSeries, restoreEventSeries,
+  snapshotEventSeries, restoreEventSeries, setRoutineDays,
 } from '../db.js';
+import { parseEventText } from '../lib/nlEvent.js';
 import { showUndoToast } from '../lib/undoToast.js';
 import { weekdayKey } from '../lib/patterns.js';
 import { dateForDisplay } from '../lib/dates.js';
 import { navigate } from '../router.js';
-import { requestHabitEdit, requestAddHabit } from '../lib/pendingEdit.js';
+import { requestHabitEdit, requestAddHabit, consumePendingAddRoutine, consumePendingAddEvent } from '../lib/pendingEdit.js';
 
 const HOUR_START = 6;
 const HOUR_END = 23;
@@ -24,7 +25,9 @@ const MIN_BLOCK_PX = 26;
 const LONG_PRESS_MS = 350;
 const MOVE_CANCEL_PX = 8;
 
-let viewMode = getCalendarView(); // 'day' | 'week' — persisted so it's remembered across visits
+// 'agenda' (Overview) | 'day' | 'week', remembered across visits. First visit: the compact
+// Overview on phones, the time grid on wider screens.
+let viewMode = getCalendarView() || (typeof matchMedia === 'function' && matchMedia('(max-width: 700px)').matches ? 'agenda' : 'day');
 let weekStart = startOfWeek(todayStr());
 let selectedDate = todayStr();
 let lastSeenToday = todayStr(); // lets a page left open past midnight follow the date forward
@@ -34,8 +37,14 @@ let selectedWeekdays = [];
 let formDraft = {};
 let editingEvent = null; // { event, scope: 'occurrence' | 'series' }
 let pointerBusy = false; // true while a create/reschedule drag session is active anywhere on the grid
-let routineSuccessEventIds = null; // set right after the user's *first* routine is created
+let routineSuccessEventIds = null; // set right after a routine is created → "Your routine is set!"
+let routineSuccessTitle = '';
 let dismissedHabitNudge = false; // "Maybe later" on the routine->habit nudge, for this session only
+let addMenuOpen = false;
+let nlText = ''; // plain-language entry ("Classes every Sun, Tue, Thu 8–11am")
+let nlResult = null; // its parsed preview, shown for confirmation before anything is saved
+let formError = '';
+let scrollToFormNext = false;
 
 function toMinutes(hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
@@ -115,7 +124,7 @@ function dayRows(date) {
     .filter((h) => h.resolvedTime && h.resolvedEndTime)
     .map((h) => ({
       type: 'habit', id: h.id, title: h.name, start: h.resolvedTime, end: h.resolvedEndTime,
-      done: !!h.history[date], stacked: h.scheduleType === 'stacked',
+      done: !!h.history[date], stacked: h.scheduleType === 'stacked', position: h.stackPosition,
       linkedTitles: h.scheduleType === 'stacked' ? habitLinkedEventTitles(h) : [],
     }));
   return layoutOverlaps([...eventRows, ...habitRows]);
@@ -131,8 +140,9 @@ function gridBlocksHtml(rows, pxPerHour = PX_PER_HOUR, minBlockPx = MIN_BLOCK_PX
     const typeClass = r.type === 'event' ? 'event' : (r.stacked ? 'habit stacked' : 'habit');
     const doneClass = r.type === 'habit' && r.done ? ' done' : '';
     const draggable = draggableEnabled && (r.type === 'event' || (r.type === 'habit' && !r.stacked));
+    const stackWord = t(r.position === 'before' ? 'stackedBefore' : 'stackedAfter');
     const subtitle = r.type === 'habit' && r.stacked && r.linkedTitles.length
-      ? `${t('stackedAfter')}: ${r.linkedTitles.join(', ')}`
+      ? `${stackWord} ${r.linkedTitles.join(', ')}`
       : `${r.start}–${r.end}`;
     return `
       <div class="grid-block ${typeClass}${doneClass}" data-row-id="${r.id}" data-row-type="${r.type}" ${draggable ? 'data-draggable="1"' : ''}
@@ -140,7 +150,7 @@ function gridBlocksHtml(rows, pxPerHour = PX_PER_HOUR, minBlockPx = MIN_BLOCK_PX
         style="top:${top}px; height:${height}px; left:calc(${leftPct}% + 2px); width:calc(${widthPct}% - 4px);">
         <div class="gb-title">${r.type === 'habit' && r.done ? '<span class="gb-check">✓</span>' : ''}${escapeHtml(r.title)}</div>
         ${showTime ? `<div class="gb-time" dir="ltr">${r.start}–${r.end}</div>` : ''}
-        ${r.type === 'habit' && r.stacked ? `<span class="gb-link" title="${t('stackedAfter')}: ${escapeAttr(r.linkedTitles.join(', '))}">${icon.sync}</span>` : ''}
+        ${r.type === 'habit' && r.stacked ? `<span class="gb-link" title="${escapeAttr(`${stackWord} ${r.linkedTitles.join(', ')}`)}">${icon.sync}</span>` : ''}
       </div>
     `;
   }).join('');
@@ -211,12 +221,48 @@ function weekViewHtml(days) {
   `;
 }
 
-// Which onboarding phase (if any) to show, computed once per render and shared by the guidance
-// card and the quick-action buttons below the grid, so the same CTA never appears twice on screen.
+// Which guidance card to show. After saving any routine, the "Your routine is set!" card leads to
+// building a habit around it; otherwise first-time users are guided until they have a habit.
 function guidancePhase() {
+  if (routineSuccessEventIds) return 'success';
   if (getHabits().length > 0) return null;
   if (!hasRoutines()) return 'routine';
   return 'habit';
+}
+
+function consumeHandOffs() {
+  const routine = consumePendingAddRoutine();
+  if (routine) {
+    formType = 'weekly';
+    selectedWeekdays = [];
+    formDraft = { title: routine.title || '' };
+    editingEvent = null;
+    nlResult = null;
+    addMenuOpen = false;
+    formError = '';
+    showForm = true;
+    scrollToFormNext = true;
+  }
+  const ev = consumePendingAddEvent();
+  if (ev) {
+    const startMin = nextHalfHour();
+    const minutes = Math.min(240, Math.max(15, Math.round(Number(ev.minutes) || 30)));
+    formType = 'once';
+    selectedWeekdays = [];
+    formDraft = { title: ev.title || '', date: todayStr(), start: fromMinutes(startMin), end: fromMinutes(Math.min(startMin + minutes, 24 * 60 - 1)) };
+    editingEvent = null;
+    nlResult = null;
+    addMenuOpen = false;
+    formError = '';
+    showForm = true;
+    scrollToFormNext = true;
+  }
+}
+
+function nextHalfHour() {
+  const now = new Date();
+  const m = now.getHours() * 60 + now.getMinutes();
+  return Math.min(Math.ceil((m + 1) / 30) * 30, 23 * 60);
 }
 
 export function renderCalendar(root) {
@@ -230,73 +276,67 @@ export function renderCalendar(root) {
     }
     lastSeenToday = now;
   }
+  consumeHandOffs();
   const rows = dayRows(selectedDate);
-  const allEvents = getEvents();
   const days = weekDaysMeta();
   const phase = guidancePhase();
   const guidanceHtml = guidanceCardHtml(phase);
-  // Only hide a quick-add button when the guidance card above is actually showing that same CTA
-  // (e.g. "Add a Routine" inside the phase-1 card) — once dismissed via "Maybe later", or once the
-  // card is gone for any other reason, both quick-add buttons must stay available per spec.
-  const cardShowsRoutineCta = phase === 'routine';
-  const cardShowsHabitCta = phase === 'habit' && guidanceHtml !== '';
+  const onToday = viewMode === 'week' ? weekStart === startOfWeek(todayStr()) : selectedDate === todayStr();
+  const navLabel = viewMode === 'week'
+    ? `${fmtShort(weekStart)} – ${fmtShort(addDays(weekStart, 6))}`
+    : dateForDisplay(selectedDate).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   root.innerHTML = `
-    <div class="page">
-      <div>
-        <h2 class="screen-title">${t('calendarTitle')}</h2>
+    <div class="page cal">
+      <header>
+        <h1 class="screen-title">${t('calendarTitle')}</h1>
         <div class="screen-subtitle">${t('calendarSubtitle')}</div>
-      </div>
+      </header>
 
       ${guidanceHtml}
 
-      <div class="row between">
-        <div class="toggle-pill" id="viewToggle">
-          <button data-val="day" class="${viewMode === 'day' ? 'active' : ''}" aria-pressed="${viewMode === 'day'}">${t('dayViewLabel')}</button>
-          <button data-val="week" class="${viewMode === 'week' ? 'active' : ''}" aria-pressed="${viewMode === 'week'}">${t('weekViewLabel')}</button>
-        </div>
-        <button class="chip clickable" id="todayBtn">${t('todayBtn')}</button>
+      <div class="cal-actions">
+        <button class="btn primary grow" id="addMenuBtn" aria-expanded="${addMenuOpen}">${icon.plus} ${t('addToCalendar')}</button>
+        <button class="btn secondary grow" id="addHabitQuickBtn">${icon.plus} ${t('addHabitBtn')}</button>
       </div>
-
-      <div class="row between">
-        <button class="btn secondary sm" id="prevBtn" aria-label="${t('previousPeriod')}">${icon.back}</button>
-        <span class="label-sm" style="font-weight:700; font-size:12.5px; color:var(--text);" dir="${getLang() === 'ar' ? 'rtl' : 'ltr'}">${viewMode === 'day'
-          ? dateForDisplay(selectedDate).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-          : `${fmtShort(weekStart)} – ${fmtShort(addDays(weekStart, 6))}`}</span>
-        <button class="btn secondary sm" id="nextBtn" aria-label="${t('nextPeriod')}" style="transform:scaleX(-1);">${icon.back}</button>
-      </div>
-
-      ${viewMode === 'day' ? dayStripHtml(days) : ''}
-
-      <div class="row" style="gap:14px;">
-        <div class="row" style="gap:5px;"><span class="legend-dot event"></span><span class="label-sm">${t('legendCalendar')}</span></div>
-        <div class="row" style="gap:5px;"><span class="legend-dot habit"></span><span class="label-sm">${t('legendHabit')}</span></div>
-      </div>
-
-      ${viewMode === 'day' ? dayViewHtml(rows) : weekViewHtml(days)}
-
-      <div class="row" style="gap:8px;">
-        ${!cardShowsRoutineCta ? `<button class="btn secondary grow" id="addRoutineQuickBtn">${icon.repeat} ${t('addRoutineBtn')}</button>` : ''}
-        ${!cardShowsHabitCta ? `<button class="btn secondary grow" id="addHabitQuickBtn">${icon.plus} ${t('addHabitBtn')}</button>` : ''}
-      </div>
-      <button class="btn ghost" id="addEventBtn">${icon.plus} ${t('manualAdd')}</button>
-
+      ${addMenuOpen ? addMenuHtml() : ''}
+      ${nlResult ? nlPreviewHtml(nlResult) : ''}
       ${showForm ? eventFormHtml() : ''}
 
-      ${allEvents.length ? `
-        <div>
-          <div class="section-head" style="margin-bottom:8px;"><span class="title">${t('allEvents')}</span></div>
-          <div class="col">
-            ${allEvents.map(eventManageRow).join('')}
-          </div>
+      <div class="cal-toolbar">
+        <div class="seg cal-views" role="radiogroup" aria-label="${escapeAttr(t('calendarViewLabel'))}" id="viewToggle">
+          ${[['agenda', 'overviewViewLabel'], ['day', 'dayViewLabel'], ['week', 'weekViewLabel']].map(([v, k]) => `
+            <button type="button" role="radio" class="seg-btn ${viewMode === v ? 'on' : ''}" data-val="${v}" aria-checked="${viewMode === v}">${t(k)}</button>
+          `).join('')}
         </div>
-      ` : ''}
+      </div>
+
+      <div class="cal-nav">
+        <button class="btn secondary sm" id="prevBtn" aria-label="${t('previousPeriod')}">${icon.back}</button>
+        <div class="cal-nav-label" dir="${getLang() === 'ar' ? 'rtl' : 'ltr'}">
+          <span>${escapeHtml(navLabel)}</span>
+          ${onToday ? '' : `<button class="chip clickable" id="todayBtn">${t('todayBtn')}</button>`}
+        </div>
+        <button class="btn secondary sm flip-x" id="nextBtn" aria-label="${t('nextPeriod')}">${icon.back}</button>
+      </div>
+
+      ${viewMode !== 'week' ? dayStripHtml(days) : ''}
+
+      ${viewMode !== 'agenda' ? `
+        <div class="row" style="gap:14px;">
+          <div class="row" style="gap:5px;"><span class="legend-dot event"></span><span class="label-sm">${t('legendCalendar')}</span></div>
+          <div class="row" style="gap:5px;"><span class="legend-dot habit"></span><span class="label-sm">${t('legendHabit')}</span></div>
+        </div>` : ''}
+
+      ${viewMode === 'agenda' ? agendaHtml(rows) : viewMode === 'day' ? dayViewHtml(rows) : weekViewHtml(days)}
+
+      ${routineListHtml()}
     </div>
 
     ${editingEvent ? eventEditModalHtml(editingEvent) : ''}
   `;
 
-  root.querySelectorAll('#viewToggle button').forEach((btn) => {
+  root.querySelectorAll('#viewToggle [data-val]').forEach((btn) => {
     btn.addEventListener('click', () => {
       viewMode = btn.dataset.val;
       setCalendarView(viewMode);
@@ -305,26 +345,26 @@ export function renderCalendar(root) {
   });
 
   root.querySelector('#prevBtn').addEventListener('click', () => {
-    if (viewMode === 'day') {
-      selectedDate = addDays(selectedDate, -1);
-      weekStart = startOfWeek(selectedDate);
-    } else {
+    if (viewMode === 'week') {
       weekStart = addDays(weekStart, -7);
       selectedDate = addDays(selectedDate, -7);
+    } else {
+      selectedDate = addDays(selectedDate, -1);
+      weekStart = startOfWeek(selectedDate);
     }
     renderCalendar(root);
   });
   root.querySelector('#nextBtn').addEventListener('click', () => {
-    if (viewMode === 'day') {
-      selectedDate = addDays(selectedDate, 1);
-      weekStart = startOfWeek(selectedDate);
-    } else {
+    if (viewMode === 'week') {
       weekStart = addDays(weekStart, 7);
       selectedDate = addDays(selectedDate, 7);
+    } else {
+      selectedDate = addDays(selectedDate, 1);
+      weekStart = startOfWeek(selectedDate);
     }
     renderCalendar(root);
   });
-  root.querySelector('#todayBtn').addEventListener('click', () => {
+  root.querySelector('#todayBtn')?.addEventListener('click', () => {
     weekStart = startOfWeek(todayStr());
     selectedDate = todayStr();
     renderCalendar(root);
@@ -337,34 +377,262 @@ export function renderCalendar(root) {
     });
   });
 
-  root.querySelector('#addEventBtn').addEventListener('click', () => {
-    showForm = !showForm;
-    editingEvent = null;
-    if (showForm) { selectedWeekdays = []; formDraft = {}; }
+  root.querySelector('#addMenuBtn').addEventListener('click', () => {
+    addMenuOpen = !addMenuOpen;
+    if (addMenuOpen) { showForm = false; nlResult = null; editingEvent = null; }
     renderCalendar(root);
+    if (addMenuOpen) root.querySelector('#nlInput')?.focus();
+  });
+  root.querySelector('#addHabitQuickBtn').addEventListener('click', () => {
+    requestAddHabit([]);
+    navigate('/');
   });
 
   if (viewMode === 'day') wireDayColumn(root);
-  else wireWeekView(root, days);
+  else if (viewMode === 'week') wireWeekView(root, days);
+  else wireAgenda(root, rows);
 
   wireGuidanceCard(root);
-  const addRoutineQuickBtn = root.querySelector('#addRoutineQuickBtn');
-  if (addRoutineQuickBtn) addRoutineQuickBtn.addEventListener('click', () => openRoutineForm(root));
-  const addHabitQuickBtn = root.querySelector('#addHabitQuickBtn');
-  if (addHabitQuickBtn) {
-    addHabitQuickBtn.addEventListener('click', () => {
-      requestAddHabit([]);
-      navigate('/');
-    });
-  }
-
+  wireAddMenu(root);
+  wireNlPreview(root);
   wireCreateForm(root);
   wireManageList(root);
   if (editingEvent) wireEventModal(root);
+
+  if (scrollToFormNext) {
+    scrollToFormNext = false;
+    requestAnimationFrame(() => {
+      const form = root.querySelector('#eventForm');
+      if (!form) return;
+      form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      form.querySelector('#evTitle')?.focus({ preventScroll: true });
+    });
+  }
 }
 
-// ---------- Onboarding guidance: "add your routine first" → "ready to build a habit" → nothing
-// once the user actually has habits, so returning users aren't nagged. ----------
+// ---------- "+ Add to calendar": describe it in words, or add a routine / one-time event ----------
+function addMenuHtml() {
+  return `
+    <div class="card add-menu">
+      <form id="nlForm" class="nl-form" novalidate>
+        <label class="q-label" for="nlInput">${t('nlLabel')}</label>
+        <div class="nl-row">
+          <input class="field grow" id="nlInput" value="${escapeAttr(nlText)}" placeholder="${escapeAttr(t('nlPlaceholder'))}" autocomplete="off" maxlength="300" />
+          <button class="btn primary sm" type="submit">${t('nlPreviewBtn')}</button>
+        </div>
+        <p class="form-note">${t('nlHint')}</p>
+      </form>
+      <div class="add-menu-or">${t('orStepByStep')}</div>
+      <div class="add-menu-choices">
+        <button class="add-choice" id="addRoutineQuickBtn">
+          <span class="ac-icon" aria-hidden="true">${icon.repeat}</span>
+          <span class="ac-text"><span class="ac-title">${t('addRoutineChoice')}</span><span class="ac-sub">${t('addRoutineChoiceSub')}</span></span>
+        </button>
+        <button class="add-choice" id="addEventBtn">
+          <span class="ac-icon" aria-hidden="true">${icon.calendar}</span>
+          <span class="ac-text"><span class="ac-title">${t('addOnceChoice')}</span><span class="ac-sub">${t('addOnceChoiceSub')}</span></span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function wireAddMenu(root) {
+  const nlForm = root.querySelector('#nlForm');
+  if (!nlForm) return;
+  nlForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    nlText = root.querySelector('#nlInput').value.trim();
+    if (!nlText) return;
+    nlResult = parseEventText(nlText, { today: todayStr(), lang: getLang() });
+    addMenuOpen = false;
+    renderCalendar(root);
+    requestAnimationFrame(() => root.querySelector('.nl-preview')?.focus());
+  });
+  root.querySelector('#addRoutineQuickBtn').addEventListener('click', () => openRoutineForm(root));
+  root.querySelector('#addEventBtn').addEventListener('click', () => {
+    formType = 'once';
+    selectedWeekdays = [];
+    formDraft = {};
+    formError = '';
+    addMenuOpen = false;
+    showForm = true;
+    scrollToFormNext = true;
+    renderCalendar(root);
+  });
+}
+
+// ---------- Plain-language preview: nothing is saved until the user confirms ----------
+function durationLabel(start, end) {
+  const mins = toMinutes(end) - toMinutes(start);
+  if (mins <= 0) return '';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h && m ? t('durHM', { h, m }) : h ? t('durH', { h }) : t('durM', { m });
+}
+
+function daysListText(days) {
+  if (days.length === 7) return t('everyDayLabel');
+  return days.map((d) => t(weekdayKey(d))).join(getLang() === 'ar' ? '، ' : ', ');
+}
+
+function nlPreviewHtml(r) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const timeBad = r.start && r.end && toMinutes(r.end) <= toMinutes(r.start);
+  const missing = [...r.missing];
+  if (timeBad) missing.push('order');
+  const missingText = { title: t('nlMissingTitle'), days: t('nlMissingDays'), start: t('nlMissingStart'), end: t('nlMissingEnd'), order: t('evErrOrder') };
+  const repeats = r.type === 'weekly'
+    ? t('nlRepeatsEvery', { days: daysListText(r.days) })
+    : r.type === 'once' ? escapeHtml(dateForDisplay(r.date).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })) : '—';
+  return `
+    <section class="card nl-preview" tabindex="-1" aria-labelledby="nlPreviewTitle">
+      <h2 class="insight-kicker" id="nlPreviewTitle">${t('nlCheckTitle')}</h2>
+      <p class="form-note nl-quote">“${escapeHtml(nlText)}”</p>
+      <dl class="nl-fields">
+        <div><dt>${t('nlFieldTitle')}</dt><dd>${r.title ? escapeHtml(r.title) : '—'}</dd></div>
+        <div><dt>${t(r.type === 'weekly' ? 'nlFieldRepeats' : 'nlFieldDate')}</dt><dd>${repeats}</dd></div>
+        <div><dt>${t('nlFieldTime')}</dt><dd dir="ltr">${r.start || '—'}${r.end ? '–' + r.end : ''}${r.start && r.end && !timeBad ? ` <span class="nl-dur">(${durationLabel(r.start, r.end)})</span>` : ''}</dd></div>
+        <div><dt>${t('nlFieldTimeZone')}</dt><dd dir="ltr">${escapeHtml(tz)}</dd></div>
+      </dl>
+      ${missing.length ? `<div class="form-error" role="alert">${missing.map((k) => missingText[k]).join(' ')}</div>` : ''}
+      <div class="form-actions">
+        <button class="btn primary grow" id="nlSaveBtn" ${missing.length ? 'disabled' : ''}>${t(r.type === 'weekly' ? 'nlSaveRoutine' : 'nlSaveEvent')}</button>
+        <button class="btn secondary grow" id="nlEditBtn">${t('nlEditDetails')}</button>
+      </div>
+      <button class="btn ghost" id="nlCancelBtn">${t('cancel')}</button>
+    </section>
+  `;
+}
+
+function wireNlPreview(root) {
+  const card = root.querySelector('.nl-preview');
+  if (!card) return;
+  root.querySelector('#nlSaveBtn').addEventListener('click', () => {
+    const r = nlResult;
+    if (r.type === 'weekly') {
+      const seriesId = uid();
+      addEvents(r.days.map((d) => ({ title: r.title, type: 'weekly', dayOfWeek: d, startDate: todayStr(), start: r.start, end: r.end, source: 'manual', seriesId })));
+      afterRoutineSaved(root, seriesId);
+    } else {
+      addEvent({ title: r.title, type: 'once', date: r.date, start: r.start, end: r.end, source: 'manual' });
+      selectedDate = r.date;
+      weekStart = startOfWeek(r.date);
+      nlResult = null;
+      nlText = '';
+      renderCalendar(root);
+    }
+  });
+  root.querySelector('#nlEditBtn').addEventListener('click', () => {
+    const r = nlResult;
+    formType = r.type === 'once' ? 'once' : 'weekly';
+    selectedWeekdays = r.type === 'weekly' ? [...r.days] : [];
+    formDraft = { title: r.title, start: r.start || '', end: r.end || '', date: r.date || selectedDate };
+    formError = '';
+    nlResult = null;
+    showForm = true;
+    scrollToFormNext = true;
+    renderCalendar(root);
+  });
+  root.querySelector('#nlCancelBtn').addEventListener('click', () => { nlResult = null; renderCalendar(root); });
+}
+
+// A new routine was saved (form or plain-language entry): show "Your routine is set!" at the top
+// and bring it on screen, so building a habit around it is the obvious next step.
+function afterRoutineSaved(root, seriesId) {
+  routineSuccessEventIds = getEvents().filter((e) => e.seriesId === seriesId).map((e) => e.id);
+  routineSuccessTitle = getEvents().find((e) => e.seriesId === seriesId)?.title || '';
+  nlResult = null;
+  nlText = '';
+  showForm = false;
+  selectedWeekdays = [];
+  formDraft = {};
+  formError = '';
+  renderCalendar(root);
+  requestAnimationFrame(() => {
+    const card = root.querySelector('.guidance-card');
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    root.querySelector('#goAddHabitBtn')?.focus({ preventScroll: true });
+  });
+}
+
+// ---------- Overview: the selected day as a simple chronological list ----------
+function agendaHtml(rows) {
+  const items = [...rows].sort((a, b) => a.start.localeCompare(b.start) || (a.type === 'event' ? -1 : 1));
+  if (!items.length) {
+    return `
+      <div class="empty-state card compact agenda-empty">
+        <div class="title">${t('agendaEmptyTitle')}</div>
+        <div class="body">${t('agendaEmptyBody')}</div>
+      </div>
+    `;
+  }
+  const gaps = freeGaps(items);
+  const parts = [];
+  items.forEach((r) => {
+    const gapBefore = gaps.find((g) => g.end === r.start && !g.shown);
+    if (gapBefore) { gapBefore.shown = true; parts.push(gapHtml(gapBefore)); }
+    parts.push(agendaItemHtml(r));
+  });
+  gaps.filter((g) => !g.shown).forEach((g) => parts.push(gapHtml(g)));
+  return `<div class="agenda" id="agendaList">${parts.join('')}</div>`;
+}
+
+// Free stretches of at least an hour between 07:00 and 22:00, so it's easy to see where a new
+// habit or event could fit.
+function freeGaps(items) {
+  const DAY_START = 7 * 60;
+  const DAY_END = 22 * 60;
+  const busy = items.map((r) => [toMinutes(r.start), toMinutes(r.end)]).sort((a, b) => a[0] - b[0]);
+  const gaps = [];
+  let cursor = DAY_START;
+  busy.forEach(([s, e]) => {
+    if (s - cursor >= 60 && s > DAY_START) gaps.push({ start: fromMinutes(cursor), end: fromMinutes(Math.min(s, DAY_END)) });
+    cursor = Math.max(cursor, e);
+  });
+  if (DAY_END - cursor >= 60) gaps.push({ start: fromMinutes(cursor), end: fromMinutes(DAY_END) });
+  return gaps.filter((g) => toMinutes(g.end) - toMinutes(g.start) >= 60);
+}
+
+function gapHtml(g) {
+  return `
+    <div class="agenda-gap">
+      <span>${t('freeTime')} <span dir="ltr">${g.start}–${g.end}</span></span>
+      <button class="chip clickable gap-add" data-start="${g.start}" aria-label="${escapeAttr(t('addAtTime', { time: g.start }))}">${icon.plus}</button>
+    </div>
+  `;
+}
+
+function agendaItemHtml(r) {
+  const kind = r.type === 'habit'
+    ? (r.stacked && r.linkedTitles.length ? `${t('legendHabit')} · ${t(r.position === 'before' ? 'stackedBefore' : 'stackedAfter')} ${escapeHtml(r.linkedTitles.join(', '))}` : t('legendHabit'))
+    : t(r.eventType === 'weekly' ? 'routineLabel' : 'oneTimeLabel');
+  return `
+    <button class="agenda-item ${r.type}${r.done ? ' done' : ''}" data-row-id="${r.id}" data-row-type="${r.type}">
+      <span class="ag-time" dir="ltr"><span>${r.start}</span><span class="ag-end">${r.end}</span></span>
+      <span class="ag-body">
+        <span class="ag-title">${r.type === 'habit' && r.done ? `<span class="ag-done" aria-hidden="true">${icon.check}</span><span class="sr-only">${t('dayDone')}: </span>` : ''}${escapeHtml(r.title)}</span>
+        <span class="ag-meta">${durationLabel(r.start, r.end)} · ${kind}</span>
+      </span>
+    </button>
+  `;
+}
+
+function wireAgenda(root, rows) {
+  root.querySelectorAll('.agenda-item').forEach((el) => {
+    const row = rows.find((r) => r.id === el.dataset.rowId && r.type === el.dataset.rowType);
+    if (row) el.addEventListener('click', () => openBlockDetail(row, root));
+  });
+  root.querySelectorAll('.gap-add').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const start = btn.dataset.start;
+      openCreateFormAt(selectedDate, start, fromMinutes(toMinutes(start) + 30), root);
+    });
+  });
+}
+
+// ---------- Guidance: "start with your routine" → "your routine is set" → build a habit ----------
 
 function stepsIndicatorHtml(currentStep) {
   const steps = [
@@ -389,43 +657,47 @@ function guidanceCardHtml(phase) {
 
   if (phase === 'routine') {
     return `
-      <div class="card guidance-card">
+      <section class="card guidance-card" aria-labelledby="gcTitle">
         ${stepsIndicatorHtml(1)}
-        <div class="icon-circle filled" style="margin-top:2px;">${icon.repeat}</div>
-        <div class="gc-title">${t('startRoutineTitle')}</div>
+        <h2 class="gc-title" id="gcTitle">${t('startRoutineTitle')}</h2>
         <div class="gc-body">${t('startRoutineBody')}</div>
-        <button class="btn primary" id="addRoutineBtn" style="margin-top:10px;">${icon.plus} ${t('addRoutineBtn')}</button>
-      </div>
+        <ul class="gc-examples">
+          <li>${t('routineExampleClasses')}</li>
+          <li>${t('routineExampleWork')}</li>
+          <li>${t('routineExampleOther')}</li>
+        </ul>
+        <button class="btn primary" id="addRoutineBtn">${icon.plus} ${t('addRoutineBtn')}</button>
+        <p class="form-note">${t('routineOptionalNote')}</p>
+      </section>
     `;
   }
 
-  // phase === 'habit': routines exist, no habits yet
-  if (routineSuccessEventIds) {
+  if (phase === 'success') {
     return `
-      <div class="card guidance-card accent">
-        ${stepsIndicatorHtml(2)}
-        <div class="icon-circle filled" style="margin-top:2px;">${icon.check}</div>
-        <div class="gc-title">${t('routineSuccessTitle')}</div>
+      <section class="card guidance-card accent" aria-labelledby="gcTitle">
+        ${getHabits().length ? '' : stepsIndicatorHtml(2)}
+        <h2 class="gc-title" id="gcTitle">${t('routineSuccessTitle')}</h2>
+        <div class="gc-body">${routineSuccessTitle ? t('routineSuccessBody', { title: escapeHtml(routineSuccessTitle) }) : ''}</div>
         <div class="row" style="gap:8px; margin-top:10px;">
           <button class="btn primary grow" id="goAddHabitBtn">${t('addHabitBtn')}</button>
           <button class="btn secondary grow" id="maybeLaterBtn">${t('maybeLaterBtn')}</button>
         </div>
-      </div>
+      </section>
     `;
   }
 
   if (dismissedHabitNudge) return '';
 
   return `
-    <div class="card guidance-card">
+    <section class="card guidance-card" aria-labelledby="gcTitle">
       ${stepsIndicatorHtml(2)}
-      <div class="gc-title">${t('readyForHabitTitle')}</div>
+      <h2 class="gc-title" id="gcTitle">${t('readyForHabitTitle')}</h2>
       <div class="gc-body">${t('readyForHabitBody')}</div>
       <div class="row" style="gap:8px; margin-top:10px;">
         <button class="btn primary grow" id="goAddHabitBtn">${t('addHabitBtn')}</button>
         <button class="btn secondary grow" id="maybeLaterBtn">${t('maybeLaterBtn')}</button>
       </div>
-    </div>
+    </section>
   `;
 }
 
@@ -433,13 +705,13 @@ function openRoutineForm(root) {
   formType = 'weekly';
   selectedWeekdays = [];
   formDraft = {};
+  formError = '';
   editingEvent = null;
+  addMenuOpen = false;
+  nlResult = null;
   showForm = true;
+  scrollToFormNext = true;
   renderCalendar(root);
-  requestAnimationFrame(() => {
-    const form = root.querySelector('#eventForm');
-    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
 }
 
 function wireGuidanceCard(root) {
@@ -450,6 +722,7 @@ function wireGuidanceCard(root) {
   if (goAddHabitBtn) {
     goAddHabitBtn.addEventListener('click', () => {
       requestAddHabit(routineSuccessEventIds || []);
+      routineSuccessEventIds = null;
       navigate('/');
     });
   }
@@ -464,9 +737,8 @@ function wireGuidanceCard(root) {
   }
 }
 
-// ---------- Day-column interaction: tap/click to create, drag to create a range, drag an
-// existing block to reschedule it. Touch uses a short hold before arming a drag-create so an
-// ordinary scroll swipe through the day isn't hijacked; a plain tap still creates instantly. ----------
+// ---------- Day / week grid interaction ----------
+
 function wireDayColumn(root) {
   const colEl = root.querySelector('#dayCol');
   const rows = dayRows(selectedDate);
@@ -650,16 +922,17 @@ function persistReschedule(row, newStart, newEnd) {
 
 function openCreateFormAt(dateStr, start, end, root) {
   selectedDate = dateStr;
+  weekStart = startOfWeek(dateStr);
   formDraft = { date: dateStr, start, end };
   formType = 'once';
   selectedWeekdays = [];
+  formError = '';
   editingEvent = null;
+  addMenuOpen = false;
+  nlResult = null;
   showForm = true;
+  scrollToFormNext = true;
   renderCalendar(root);
-  requestAnimationFrame(() => {
-    const form = root.querySelector('#eventForm');
-    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  });
 }
 
 function openBlockDetail(row, root) {
@@ -671,11 +944,11 @@ function openBlockDetail(row, root) {
   const ev = getEvents().find((e) => e.id === row.id);
   if (!ev) return;
   showForm = false;
-  editingEvent = { event: ev, scope: 'occurrence' };
+  editingEvent = { event: ev, scope: 'occurrence', days: null };
   renderCalendar(root);
 }
 
-// ---------- Create-event form (unchanged once/weekly flow, now also prefillable from a tap/drag) ----------
+// ---------- Create form: one time or weekly routine ----------
 
 function captureFormDraft(form) {
   formDraft = {
@@ -685,130 +958,222 @@ function captureFormDraft(form) {
     date: form.querySelector('#evDate')?.value ?? formDraft.date,
     recurStart: form.querySelector('#evRecurStart')?.value ?? formDraft.recurStart,
     recurEnd: form.querySelector('#evRecurEnd')?.value ?? formDraft.recurEnd,
+    rangeOpen: form.querySelector('.recur-range')?.open ?? formDraft.rangeOpen,
   };
+}
+
+// Common week shapes, so a school or work week is one tap. The Arabic week runs Sunday–Thursday.
+function dayPresets() {
+  return getLang() === 'ar'
+    ? [['presetSunThu', [0, 1, 2, 3, 4]], ['presetEveryDay', [0, 1, 2, 3, 4, 5, 6]]]
+    : [['presetMonFri', [1, 2, 3, 4, 5]], ['presetSunThu', [0, 1, 2, 3, 4]], ['presetEveryDay', [0, 1, 2, 3, 4, 5, 6]]];
+}
+
+function weekdayChipsHtml(selected, cls) {
+  return `
+    <div class="wrap-gap" role="group">
+      ${[0, 1, 2, 3, 4, 5, 6].map((day) => `
+        <button type="button" class="chip clickable weekday-chip ${cls} ${selected.includes(day) ? 'solid' : ''}" data-day="${day}" aria-pressed="${selected.includes(day)}">${t(weekdayKey(day))}</button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function timeRowHtml(prefix, start, end) {
+  const dur = start && end && toMinutes(end) > toMinutes(start) ? durationLabel(start, end) : '';
+  return `
+    <div class="row" style="gap:8px;">
+      <div class="col grow"><label class="label-sm" for="${prefix}Start">${t('eventStart')}</label><input class="field" type="time" id="${prefix}Start" value="${escapeAttr(start || '')}" required /></div>
+      <div class="col grow"><label class="label-sm" for="${prefix}End">${t('eventEnd')}</label><input class="field" type="time" id="${prefix}End" value="${escapeAttr(end || '')}" required /></div>
+    </div>
+    <div class="form-note dur-note" aria-live="polite">${dur ? t('durationIs', { dur }) : ''}</div>
+  `;
+}
+
+function wireDurationNote(scope, prefix) {
+  const update = () => {
+    const s = scope.querySelector(`#${prefix}Start`).value;
+    const e = scope.querySelector(`#${prefix}End`).value;
+    const note = scope.querySelector('.dur-note');
+    if (note) note.textContent = s && e && toMinutes(e) > toMinutes(s) ? t('durationIs', { dur: durationLabel(s, e) }) : '';
+  };
+  scope.querySelector(`#${prefix}Start`)?.addEventListener('input', update);
+  scope.querySelector(`#${prefix}End`)?.addEventListener('input', update);
 }
 
 function eventFormHtml() {
   const d = formDraft;
+  const weekly = formType === 'weekly';
   return `
-    <form id="eventForm" class="card col">
-      <input class="field" id="evTitle" placeholder="${t('eventTitlePlaceholder')}" aria-label="${t('eventTitlePlaceholder')}" value="${escapeAttr(d.title || '')}" required />
-      <div class="row" style="gap:14px;">
-        <label class="row radio-row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="once" ${formType === 'once' ? 'checked' : ''}/> ${t('once')}</label>
-        <label class="row radio-row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="weekly" ${formType === 'weekly' ? 'checked' : ''}/> ${t('recurWeekly')}</label>
+    <form id="eventForm" class="card col event-form" novalidate aria-labelledby="eventFormTitle">
+      <div class="row between">
+        <h2 class="form-title" id="eventFormTitle">${t(weekly ? 'newRoutineTitle' : 'newEventTitle')}</h2>
+        <button type="button" class="chip clickable" id="cancelFormBtn" aria-label="${t('cancel')}">${icon.close}</button>
       </div>
-      ${formType === 'once' ? `
-        <input class="field" type="date" id="evDate" aria-label="${t('eventDate')}" value="${d.date || selectedDate}" />
-      ` : `
+      <div class="seg" role="radiogroup" aria-label="${escapeAttr(t('eventKindLabel'))}">
+        <button type="button" role="radio" class="seg-btn ${weekly ? 'on' : ''}" data-type="weekly" aria-checked="${weekly}">${t('recurWeekly')}</button>
+        <button type="button" role="radio" class="seg-btn ${!weekly ? 'on' : ''}" data-type="once" aria-checked="${!weekly}">${t('once')}</button>
+      </div>
+      <div class="col">
+        <label class="label-sm" for="evTitle">${t('eventNameLabel')}</label>
+        <input class="field" id="evTitle" placeholder="${escapeAttr(t(weekly ? 'routineTitlePlaceholder' : 'eventTitlePlaceholder'))}" value="${escapeAttr(d.title || '')}" maxlength="80" required />
+      </div>
+      ${weekly ? `
         <div>
-          <label class="label-sm" style="display:block; margin-bottom:6px;">${t('repeatsOnLabel')}</label>
-          <div class="wrap-gap">
-            ${[0, 1, 2, 3, 4, 5, 6].map((day) => `
-              <button type="button" class="chip clickable weekday-chip ${selectedWeekdays.includes(day) ? 'solid' : ''}" data-day="${day}">${t(weekdayKey(day))}</button>
-            `).join('')}
+          <div class="label-sm" style="margin-bottom:6px;">${t('repeatsOnLabel')}</div>
+          ${weekdayChipsHtml(selectedWeekdays, 'form-day')}
+          <div class="wrap-gap presets">
+            ${dayPresets().map(([k, days]) => `<button type="button" class="chip clickable day-preset" data-days="${days.join(',')}">${t(k)}</button>`).join('')}
           </div>
         </div>
-        <div class="row" style="gap:8px;">
-          <div class="col grow"><label class="label-sm">${t('recurStartLabel')}</label><input class="field" type="date" id="evRecurStart" aria-label="${t('recurStartLabel')}" value="${d.recurStart || selectedDate}" /></div>
-          <div class="col grow"><label class="label-sm">${t('recurEndLabel')}</label><input class="field" type="date" id="evRecurEnd" aria-label="${t('recurEndLabel')}" value="${d.recurEnd || ''}" min="${d.recurStart || selectedDate}" /></div>
-        </div>
-        <div style="font-size:11px; color:var(--text-muted);">${t('recurEndHint')}</div>
+      ` : `
+        <div class="col"><label class="label-sm" for="evDate">${t('eventDate')}</label><input class="field" type="date" id="evDate" value="${escapeAttr(d.date || selectedDate)}" /></div>
       `}
-      <div class="row" style="gap:8px;">
-        <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="evStart" aria-label="${t('eventStart')}" value="${d.start || ''}" required /></div>
-        <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="evEnd" aria-label="${t('eventEnd')}" value="${d.end || ''}" required /></div>
-      </div>
-      <button class="btn primary" type="submit">${t('saveEvent')}</button>
+      ${timeRowHtml('ev', d.start, d.end)}
+      ${weekly ? `
+        <details class="recur-range" ${d.rangeOpen ? 'open' : ''}>
+          <summary>${t('recurRangeSummary')}</summary>
+          <div class="row" style="gap:8px; margin-top:8px;">
+            <div class="col grow"><label class="label-sm" for="evRecurStart">${t('recurStartLabel')}</label><input class="field" type="date" id="evRecurStart" value="${escapeAttr(d.recurStart || todayStr())}" /></div>
+            <div class="col grow"><label class="label-sm" for="evRecurEnd">${t('recurEndLabel')}</label><input class="field" type="date" id="evRecurEnd" value="${escapeAttr(d.recurEnd || '')}" min="${escapeAttr(d.recurStart || todayStr())}" /></div>
+          </div>
+          <div class="form-note">${t('recurEndHint')}</div>
+        </details>
+      ` : ''}
+      ${formError ? `<div class="form-error" role="alert">${formError}</div>` : ''}
+      <button class="btn primary" type="submit">${t(weekly ? 'saveRoutine' : 'saveEvent')}</button>
     </form>
   `;
+}
+
+function validateTimes(title, start, end, needDays) {
+  if (!title) return t('nlMissingTitle');
+  if (needDays) return t('nlMissingDays');
+  if (!start) return t('nlMissingStart');
+  if (!end) return t('nlMissingEnd');
+  if (toMinutes(end) <= toMinutes(start)) return t('evErrOrder');
+  return '';
 }
 
 function wireCreateForm(root) {
   const form = root.querySelector('#eventForm');
   if (!form) return;
-  root.querySelectorAll('input[name="evType"]').forEach((r) => {
-    r.addEventListener('change', () => {
-      captureFormDraft(form);
-      formType = r.value;
-      renderCalendar(root);
+  const rerenderKeeping = () => { captureFormDraft(form); renderCalendar(root); };
+  form.querySelectorAll('[data-type]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (formType === btn.dataset.type) return;
+      formType = btn.dataset.type;
+      formError = '';
+      rerenderKeeping();
+      root.querySelector(`#eventForm [data-type="${formType}"]`)?.focus();
     });
   });
+  form.querySelectorAll('.form-day').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const day = Number(chip.dataset.day);
+      selectedWeekdays = selectedWeekdays.includes(day) ? selectedWeekdays.filter((x) => x !== day) : [...selectedWeekdays, day].sort();
+      rerenderKeeping();
+      root.querySelector(`#eventForm .form-day[data-day="${day}"]`)?.focus();
+    });
+  });
+  form.querySelectorAll('.day-preset').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectedWeekdays = btn.dataset.days.split(',').map(Number);
+      rerenderKeeping();
+    });
+  });
+  form.querySelector('#cancelFormBtn').addEventListener('click', () => {
+    showForm = false;
+    formDraft = {};
+    selectedWeekdays = [];
+    formError = '';
+    renderCalendar(root);
+  });
+  wireDurationNote(form, 'ev');
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const title = form.querySelector('#evTitle').value.trim();
-    const start = form.querySelector('#evStart').value;
-    const end = form.querySelector('#evEnd').value;
-    if (!title || !start || !end) return;
-    if (formType === 'once') {
-      const date = form.querySelector('#evDate').value || selectedDate;
-      addEvent({ title, type: 'once', date, start, end, source: 'manual' });
-    } else {
-      if (!selectedWeekdays.length) return;
-      const startDate = form.querySelector('#evRecurStart').value || selectedDate;
-      const endDate = form.querySelector('#evRecurEnd').value || undefined;
-      const seriesId = uid();
-      const wasFirstRoutine = !hasRoutines();
-      addEvents(selectedWeekdays.map((dow) => ({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual', seriesId })));
-      if (wasFirstRoutine) {
-        routineSuccessEventIds = getEvents().filter((e) => e.seriesId === seriesId).map((e) => e.id);
-      }
-    }
-    const justCreatedFirstRoutine = formType === 'weekly' && !!routineSuccessEventIds;
-    selectedWeekdays = [];
-    formDraft = {};
-    showForm = false;
-    renderCalendar(root);
-    // The form sits near the bottom of a long page, but the "Your routine is set!" card renders at
-    // the top — bring it on screen (and focus its Add Habit button) so the next step isn't missed.
-    if (justCreatedFirstRoutine) {
-      requestAnimationFrame(() => {
-        const card = root.querySelector('.guidance-card');
-        if (!card) return;
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        root.querySelector('#goAddHabitBtn')?.focus({ preventScroll: true });
-      });
-    }
-  });
-  root.querySelectorAll('.weekday-chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
-      captureFormDraft(form);
-      const day = Number(chip.dataset.day);
-      selectedWeekdays = selectedWeekdays.includes(day) ? selectedWeekdays.filter((d) => d !== day) : [...selectedWeekdays, day];
+    captureFormDraft(form);
+    const title = (formDraft.title || '').trim();
+    const { start, end } = formDraft;
+    const weekly = formType === 'weekly';
+    formError = validateTimes(title, start, end, weekly && !selectedWeekdays.length);
+    if (!formError && weekly && formDraft.recurEnd && formDraft.recurEnd < (formDraft.recurStart || todayStr())) formError = t('evErrRange');
+    if (formError) {
       renderCalendar(root);
-    });
+      root.querySelector('#eventForm .form-error')?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (!weekly) {
+      const date = formDraft.date || selectedDate;
+      addEvent({ title, type: 'once', date, start, end, source: 'manual' });
+      selectedDate = date;
+      weekStart = startOfWeek(date);
+      showForm = false;
+      formDraft = {};
+      renderCalendar(root);
+      return;
+    }
+    const startDate = formDraft.recurStart || todayStr();
+    const endDate = formDraft.recurEnd || undefined;
+    const seriesId = uid();
+    addEvents(selectedWeekdays.map((dow) => ({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual', seriesId })));
+    afterRoutineSaved(root, seriesId);
   });
 }
 
-// ---------- Event edit modal: title/start/end, this-occurrence-vs-series for recurring events ----------
+// ---------- Edit sheet: one-time event, one occurrence of a routine, or the whole routine ----------
 
-function eventEditModalHtml({ event: ev, scope }) {
+function seriesRows(seriesId) {
+  return getEvents().filter((e) => e.seriesId === seriesId && e.type === 'weekly');
+}
+
+function eventEditModalHtml({ event: ev, scope, days, fromList }) {
   const isWeekly = ev.type === 'weekly';
+  const series = isWeekly && scope === 'series';
+  const seriesDays = days || seriesRows(ev.seriesId).map((r) => r.dayOfWeek).sort();
   return `
     <div class="modal-overlay" id="eventModalOverlay">
-      <div class="modal-sheet">
+      <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
         <div class="row between" style="margin-bottom:12px;">
-          <span style="font-weight:700; font-size:14px;">${t('editEventTitle')}</span>
+          <h2 class="form-title" id="eventModalTitle">${t(series ? 'editRoutineTitle' : 'editEventTitle')}</h2>
           <button class="chip clickable" id="closeModalBtn" aria-label="${t('cancel')}" title="${t('cancel')}">${icon.close}</button>
         </div>
         ${ev.source === 'ics' ? `<div class="label-sm" style="margin-bottom:8px;">${t('icsLocalCopyNote')}</div>` : ''}
-        <form id="eventEditForm" class="col">
-          <input class="field" id="modalTitle" aria-label="${t('eventTitlePlaceholder')}" value="${escapeAttr(ev.title)}" required />
-          ${ev.type === 'once' ? `<div class="col"><label class="label-sm">${t('eventDate')}</label><input class="field" type="date" id="modalDate" aria-label="${t('eventDate')}" value="${ev.date}" /></div>` : ''}
-          <div class="row" style="gap:8px;">
-            <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="modalStart" aria-label="${t('eventStart')}" value="${ev.start}" required /></div>
-            <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="modalEnd" aria-label="${t('eventEnd')}" value="${ev.end}" required /></div>
-          </div>
-          ${isWeekly ? `
+        <form id="eventEditForm" class="col" novalidate>
+          ${isWeekly && !fromList ? `
             <div>
-              <label class="label-sm" style="display:block; margin-bottom:6px;">${t('applyToLabel')}</label>
+              <div class="label-sm" style="margin-bottom:6px;">${t('applyToLabel')}</div>
               <div class="schedule-toggle">
                 <label class="${scope === 'occurrence' ? 'checked' : ''}"><input type="radio" name="editScope" value="occurrence" ${scope === 'occurrence' ? 'checked' : ''}/>${t('thisOccurrenceOnly')}</label>
                 <label class="${scope === 'series' ? 'checked' : ''}"><input type="radio" name="editScope" value="series" ${scope === 'series' ? 'checked' : ''}/>${t('entireSeries')}</label>
               </div>
             </div>
           ` : ''}
+          <div class="col">
+            <label class="label-sm" for="modalTitle">${t('eventNameLabel')}</label>
+            <input class="field" id="modalTitle" value="${escapeAttr(ev.title)}" maxlength="80" required />
+          </div>
+          ${ev.type === 'once' ? `<div class="col"><label class="label-sm" for="modalDate">${t('eventDate')}</label><input class="field" type="date" id="modalDate" value="${escapeAttr(ev.date)}" /></div>` : ''}
+          ${series ? `
+            <div>
+              <div class="label-sm" style="margin-bottom:6px;">${t('repeatsOnLabel')}</div>
+              ${weekdayChipsHtml(seriesDays, 'modal-day')}
+            </div>
+          ` : ''}
+          ${timeRowHtml('modal', ev.start, ev.end)}
+          ${series ? `
+            <details class="recur-range">
+              <summary>${t('recurRangeSummary')}</summary>
+              <div class="row" style="gap:8px; margin-top:8px;">
+                <div class="col grow"><label class="label-sm" for="modalRecurStart">${t('recurStartLabel')}</label><input class="field" type="date" id="modalRecurStart" value="${escapeAttr(ev.startDate || '')}" /></div>
+                <div class="col grow"><label class="label-sm" for="modalRecurEnd">${t('recurEndLabel')}</label><input class="field" type="date" id="modalRecurEnd" value="${escapeAttr(ev.endDate || '')}" /></div>
+              </div>
+              <div class="form-note">${t('recurEndHint')}</div>
+            </details>
+          ` : ''}
+          ${formError ? `<div class="form-error" role="alert">${formError}</div>` : ''}
           <div class="row" style="gap:8px; margin-top:4px;">
-            <button type="button" class="btn secondary grow" id="deleteEventBtn">${t('delete')}</button>
+            <button type="button" class="btn secondary grow" id="deleteEventBtn">${t(series ? 'deleteRoutineBtn' : 'delete')}</button>
             <button type="submit" class="btn primary grow">${t('save')}</button>
           </div>
         </form>
@@ -817,34 +1182,64 @@ function eventEditModalHtml({ event: ev, scope }) {
   `;
 }
 
+function captureModal(form) {
+  const ev = editingEvent.event;
+  editingEvent.event = {
+    ...ev,
+    title: form.querySelector('#modalTitle').value,
+    start: form.querySelector('#modalStart').value,
+    end: form.querySelector('#modalEnd').value,
+    ...(form.querySelector('#modalDate') ? { date: form.querySelector('#modalDate').value } : {}),
+    ...(form.querySelector('#modalRecurStart') ? { startDate: form.querySelector('#modalRecurStart').value || ev.startDate, endDate: form.querySelector('#modalRecurEnd').value || undefined } : {}),
+  };
+}
+
 function wireEventModal(root) {
   const overlay = root.querySelector('#eventModalOverlay');
-  const close = () => { editingEvent = null; renderCalendar(root); };
+  const close = () => { editingEvent = null; formError = ''; renderCalendar(root); };
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   root.querySelector('#closeModalBtn').addEventListener('click', close);
+  const form = root.querySelector('#eventEditForm');
+  requestAnimationFrame(() => form.querySelector('#modalTitle')?.focus({ preventScroll: true }));
+  wireDurationNote(form, 'modal');
 
   root.querySelectorAll('input[name="editScope"]').forEach((r) => {
-    r.addEventListener('change', () => { editingEvent.scope = r.value; renderCalendar(root); });
+    r.addEventListener('change', () => { captureModal(form); editingEvent.scope = r.value; formError = ''; renderCalendar(root); });
+  });
+  form.querySelectorAll('.modal-day').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      captureModal(form);
+      const day = Number(chip.dataset.day);
+      const cur = editingEvent.days || seriesRows(editingEvent.event.seriesId).map((r) => r.dayOfWeek);
+      editingEvent.days = (cur.includes(day) ? cur.filter((x) => x !== day) : [...cur, day]).sort();
+      renderCalendar(root);
+      root.querySelector(`.modal-day[data-day="${day}"]`)?.focus();
+    });
   });
 
-  const form = root.querySelector('#eventEditForm');
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    captureModal(form);
     const { event: ev, scope } = editingEvent;
-    const title = form.querySelector('#modalTitle').value.trim();
-    const start = form.querySelector('#modalStart').value;
-    const end = form.querySelector('#modalEnd').value;
-    if (!title || !start || !end) return;
+    const title = ev.title.trim();
+    const series = ev.type === 'weekly' && scope === 'series';
+    const days = series ? (editingEvent.days || seriesRows(ev.seriesId).map((r) => r.dayOfWeek)) : null;
+    formError = validateTimes(title, ev.start, ev.end, series && !days.length);
+    if (!formError && series && ev.endDate && ev.startDate && ev.endDate < ev.startDate) formError = t('evErrRange');
+    if (formError) { renderCalendar(root); return; }
+    const snapshot = snapshotEventSeries(ev.seriesId);
     if (ev.type === 'once') {
-      const date = form.querySelector('#modalDate').value || ev.date;
-      updateEvent(ev.id, { title, date, start, end });
-    } else if (scope === 'series') {
-      updateEventSeries(ev.seriesId, { title, start, end });
+      updateEvent(ev.id, { title, date: ev.date || selectedDate, start: ev.start, end: ev.end });
+    } else if (series) {
+      updateEventSeries(ev.seriesId, { title, start: ev.start, end: ev.end, startDate: ev.startDate, endDate: ev.endDate });
+      setRoutineDays(ev.seriesId, days);
     } else {
-      updateEventOccurrence(ev.seriesId, selectedDate, { title, start, end });
+      updateEventOccurrence(ev.seriesId, selectedDate, { title, start: ev.start, end: ev.end });
     }
     editingEvent = null;
     renderCalendar(root);
+    showUndoToast(t('changesSavedToast'), t('undoBtn'), () => { restoreEventSeries(snapshot); renderCalendar(root); });
   });
 
   root.querySelector('#deleteEventBtn').addEventListener('click', () => {
@@ -859,7 +1254,7 @@ function wireEventModal(root) {
   });
 }
 
-// ---------- Full event management list (all events, any date) ----------
+// ---------- Your routines (grouped) and one-time events ----------
 
 function offerEventUndo(root, snapshot) {
   showUndoToast(t('eventRemovedToast'), t('undoBtn'), () => {
@@ -868,7 +1263,106 @@ function offerEventUndo(root, snapshot) {
   });
 }
 
+function routineGroups() {
+  const groups = new Map();
+  getEvents().filter((e) => e.type === 'weekly').forEach((e) => {
+    const key = e.seriesId || e.id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  });
+  return [...groups.entries()].map(([seriesId, rows]) => ({ seriesId, rows, first: rows[0] }));
+}
+
+function oneTimeEvents() {
+  const weeklySeries = new Set(getEvents().filter((e) => e.type === 'weekly').map((e) => e.seriesId));
+  // Moved or renamed single occurrences of a routine are part of that routine, not separate events.
+  return getEvents().filter((e) => e.type === 'once' && !(e.seriesId && e.seriesId !== e.id && weeklySeries.has(e.seriesId)))
+    .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+}
+
+function rangeText(ev) {
+  if (!ev.startDate && !ev.endDate) return '';
+  if (ev.endDate) return ` · ${t('recurUntilLabel')} <span dir="ltr">${escapeHtml(ev.endDate)}</span>`;
+  return ev.startDate > todayStr() ? ` · ${t('recurFromLabel')} <span dir="ltr">${escapeHtml(ev.startDate)}</span>` : '';
+}
+
+function routineRowHtml(g) {
+  const days = [...new Set(g.rows.map((r) => r.dayOfWeek))].sort();
+  const ended = g.first.endDate && g.first.endDate < todayStr();
+  return `
+    <div class="manage-row${ended ? ' ended' : ''}">
+      <span class="mr-icon" aria-hidden="true">${icon.repeat}</span>
+      <div class="grow mr-text">
+        <div class="mr-title">${escapeHtml(g.first.title)}${g.first.source === 'ics' ? ' <span class="mr-tag">.ics</span>' : ''}</div>
+        <div class="mr-sub">${escapeHtml(daysListText(days))} · <span dir="ltr">${g.first.start}–${g.first.end}</span>${rangeText(g.first)}${ended ? ` · ${t('routineEnded')}` : ''}</div>
+      </div>
+      <button class="icon-btn routine-edit" data-series="${escapeAttr(g.seriesId)}" aria-label="${escapeAttr(t('editNamed', { name: g.first.title }))}">${icon.pencil}</button>
+      <button class="icon-btn routine-remove" data-series="${escapeAttr(g.seriesId)}" aria-label="${escapeAttr(t('deleteNamed', { name: g.first.title }))}">${icon.trash}</button>
+    </div>
+  `;
+}
+
+function oneTimeRowHtml(ev) {
+  const dateText = dateForDisplay(ev.date).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return `
+    <div class="manage-row">
+      <span class="mr-icon" aria-hidden="true">${icon.calendar}</span>
+      <div class="grow mr-text">
+        <div class="mr-title">${escapeHtml(ev.title)}${ev.source === 'ics' ? ' <span class="mr-tag">.ics</span>' : ''}</div>
+        <div class="mr-sub">${escapeHtml(dateText)} · <span dir="ltr">${ev.start}–${ev.end}</span></div>
+      </div>
+      <button class="icon-btn event-edit" data-id="${escapeAttr(ev.id)}" aria-label="${escapeAttr(t('editNamed', { name: ev.title }))}">${icon.pencil}</button>
+      <button class="icon-btn event-remove" data-id="${escapeAttr(ev.id)}" aria-label="${escapeAttr(t('deleteNamed', { name: ev.title }))}">${icon.trash}</button>
+    </div>
+  `;
+}
+
+function routineListHtml() {
+  const groups = routineGroups();
+  const once = oneTimeEvents();
+  if (!groups.length && !once.length) return '';
+  const today = todayStr();
+  const upcoming = once.filter((e) => e.date >= today);
+  const past = once.filter((e) => e.date < today).reverse();
+  return `
+    <section class="manage" aria-labelledby="routinesHeading">
+      ${groups.length ? `
+        <h2 class="section-title" id="routinesHeading">${t('yourRoutinesTitle')}</h2>
+        <div class="manage-list">${groups.map(routineRowHtml).join('')}</div>
+      ` : `<h2 class="section-title" id="routinesHeading">${t('oneTimeEventsTitle')}</h2>`}
+      ${once.length ? `
+        ${groups.length ? `<h2 class="section-title">${t('oneTimeEventsTitle')}</h2>` : ''}
+        ${upcoming.length ? `<div class="manage-list">${upcoming.map(oneTimeRowHtml).join('')}</div>` : `<p class="form-note">${t('noUpcomingEvents')}</p>`}
+        ${past.length ? `
+          <details class="past-events">
+            <summary>${t('pastEventsSummary', { n: past.length })}</summary>
+            <div class="manage-list">${past.map(oneTimeRowHtml).join('')}</div>
+          </details>
+        ` : ''}
+      ` : ''}
+    </section>
+  `;
+}
+
 function wireManageList(root) {
+  root.querySelectorAll('.routine-edit').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ev = getEvents().find((e) => (e.seriesId || e.id) === btn.dataset.series && e.type === 'weekly');
+      if (!ev) return;
+      showForm = false;
+      formError = '';
+      editingEvent = { event: ev, scope: 'series', days: null, fromList: true };
+      renderCalendar(root);
+    });
+  });
+  root.querySelectorAll('.routine-remove').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const snapshot = snapshotEventSeries(btn.dataset.series);
+      removeEventSeries(btn.dataset.series);
+      renderCalendar(root);
+      offerEventUndo(root, snapshot);
+    });
+  });
   root.querySelectorAll('.event-remove').forEach((btn) => {
     btn.addEventListener('click', () => {
       const ev = getEvents().find((e) => e.id === btn.dataset.id);
@@ -884,35 +1378,11 @@ function wireManageList(root) {
       const ev = getEvents().find((e) => e.id === btn.dataset.id);
       if (!ev) return;
       showForm = false;
-      editingEvent = { event: ev, scope: 'occurrence' };
+      formError = '';
+      editingEvent = { event: ev, scope: 'occurrence', days: null, fromList: true };
       renderCalendar(root);
     });
   });
-}
-
-function recurRangeHtml(ev) {
-  if (ev.type !== 'weekly' || !ev.startDate) return '';
-  const from = ` · ${t('recurFromLabel')} <span dir="ltr">${ev.startDate}</span>`;
-  const until = ev.endDate ? ` ${t('recurUntilLabel')} <span dir="ltr">${ev.endDate}</span>` : '';
-  return `${from}${until}`;
-}
-
-function eventManageRow(ev) {
-  const suffix = ev.source === 'ics' ? ' · .ics' : '';
-  const timeRange = `${ev.start}–${ev.end}`;
-  const subtitle = ev.type === 'once'
-    ? `<span dir="ltr">${ev.date} · ${timeRange}${suffix}</span>`
-    : `${escapeHtml(t(weekdayKey(ev.dayOfWeek)))} · <span dir="ltr">${timeRange}</span>${suffix}${recurRangeHtml(ev)}`;
-  return `
-    <div class="card row" style="padding:10px 12px;">
-      <div class="grow">
-        <div style="font-size:12px; font-weight:700;">${escapeHtml(ev.title)}</div>
-        <div style="font-size:11px; color:var(--text-muted);">${subtitle}</div>
-      </div>
-      <button class="chip clickable event-edit" data-id="${ev.id}" title="${t('edit')}">${icon.pencil}</button>
-      <button class="chip clickable event-remove" data-id="${ev.id}" title="${t('delete')}">${icon.trash}</button>
-    </div>
-  `;
 }
 
 function escapeHtml(s) {

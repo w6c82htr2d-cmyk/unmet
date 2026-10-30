@@ -40,7 +40,7 @@ create table public.profiles (
   onboarded          boolean not null default false,
   theme              text check (theme in ('light', 'dark')),
   lang               text check (lang in ('en', 'ar')),
-  calendar_view      text check (calendar_view in ('day', 'week')),
+  calendar_view      text check (calendar_view in ('agenda', 'day', 'week')),
   journal_sync       boolean not null default false,          -- opt-in; see journal policies
   client_updated_at  timestamptz not null default now(),
   server_updated_at  timestamptz not null default now()

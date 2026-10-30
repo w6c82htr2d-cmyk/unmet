@@ -78,12 +78,16 @@ export function isOnboarded() {
 }
 
 // ---------- Calendar view preference ----------
+const CALENDAR_VIEWS = ['agenda', 'day', 'week'];
+
+// null when the user never picked a view (the Calendar then chooses: Overview on phones).
 export function getCalendarView() {
-  return read(KEYS.calendarView, 'day') === 'week' ? 'week' : 'day';
+  const v = read(KEYS.calendarView, null);
+  return CALENDAR_VIEWS.includes(v) ? v : null;
 }
 
 export function setCalendarView(view) {
-  write(KEYS.calendarView, view === 'week' ? 'week' : 'day');
+  write(KEYS.calendarView, CALENDAR_VIEWS.includes(view) ? view : 'day');
 }
 
 // ---------- Habits ----------
@@ -519,6 +523,25 @@ export function updateEventSeries(seriesId, updates) {
     if (e.seriesId === seriesId && e.type === 'weekly') { Object.assign(e, updates); changed = true; }
   });
   if (changed) saveEvents(events);
+}
+
+// Change which weekdays a routine repeats on. Rows for kept days are untouched (same ids, so habits
+// stacked on them stay linked); new days get new rows copied from the routine; dropped days' rows
+// are removed. One write, so it can't half-apply.
+export function setRoutineDays(seriesId, days) {
+  const events = getEvents();
+  const rows = events.filter((e) => e.seriesId === seriesId && e.type === 'weekly');
+  if (!rows.length || !days.length) return;
+  const template = rows[0];
+  const keep = events.filter((e) => !(e.seriesId === seriesId && e.type === 'weekly' && !days.includes(e.dayOfWeek)));
+  days.filter((d) => !rows.some((r) => r.dayOfWeek === d)).forEach((d) => {
+    keep.push({
+      id: uid(), seriesId, title: template.title, type: 'weekly', dayOfWeek: d,
+      startDate: template.startDate, endDate: template.endDate, start: template.start, end: template.end,
+      source: template.source || 'manual',
+    });
+  });
+  saveEvents(keep);
 }
 
 // Edit just the one occurrence on dateStr — "this event only" — leaving the rest of the series

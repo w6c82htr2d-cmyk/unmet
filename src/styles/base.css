@@ -799,3 +799,103 @@ button:focus:not(:focus-visible) { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   .habit-check.just, .habit-check.just svg path { animation: none; stroke-dashoffset: 0; }
 }
+
+/* ======================================================================
+   Calendar — add menu, plain-language preview, Overview list, routine list
+   ====================================================================== */
+.cal { gap: 14px; }
+.cal-actions { display: flex; gap: 8px; }
+.cal-actions .btn { gap: 6px; }
+.cal-actions .btn svg { width: 16px; height: 16px; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-nav-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; text-align: center; font-size: 14px; font-weight: 700; color: var(--text); }
+.flip-x { transform: scaleX(-1); }
+/* Long titles wrap inside a block instead of being cut off; tall enough blocks show two lines. */
+.gb-title { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.add-menu { display: flex; flex-direction: column; gap: 12px; }
+.nl-form { display: flex; flex-direction: column; gap: 8px; }
+.nl-row { display: flex; gap: 8px; align-items: stretch; }
+.nl-row .btn { flex-shrink: 0; width: auto; padding: 0 16px; }
+.add-menu-or { font-size: 12px; font-weight: 600; color: var(--text-muted); text-align: center; }
+.add-menu-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 380px) { .add-menu-choices { grid-template-columns: 1fr; } }
+.add-choice {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px; min-height: 64px; border-radius: 12px; background: var(--card-strong); color: var(--text);
+}
+.add-choice:hover { box-shadow: 0 0 0 1.5px var(--accent); }
+.add-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ac-icon { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.ac-icon svg { width: 20px; height: 20px; }
+.ac-text { display: flex; flex-direction: column; gap: 2px; }
+.ac-title { font-size: 14px; font-weight: 700; }
+.ac-sub { font-size: 12px; line-height: 1.4; color: var(--text-muted); }
+
+.nl-preview { display: flex; flex-direction: column; gap: 10px; border: 1.5px solid var(--accent); }
+.nl-preview:focus { outline: none; }
+.nl-preview h2 { margin: 0; }
+.nl-quote { font-style: italic; overflow-wrap: anywhere; }
+.nl-fields { margin: 0; display: grid; gap: 8px; }
+.nl-fields > div { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: baseline; }
+.nl-fields dt { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.nl-fields dd { margin: 0; font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+[dir="rtl"] .nl-fields dd[dir="ltr"] { text-align: right; }
+.nl-dur { font-weight: 500; color: var(--text-muted); }
+.nl-preview .btn.ghost { align-self: center; width: auto; }
+
+.event-form { gap: 14px; }
+.event-form .presets { margin-top: 8px; }
+.day-preset { min-height: 36px; }
+.weekday-chip { min-height: 44px; min-width: 44px; justify-content: center; }
+.recur-range summary, .past-events summary {
+  cursor: pointer; min-height: 44px; display: flex; align-items: center;
+  font-size: 13px; font-weight: 600; color: var(--accent);
+}
+.dur-note:empty { display: none; }
+
+.agenda { display: flex; flex-direction: column; gap: 6px; }
+.agenda-item {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 12px; align-items: flex-start;
+  padding: 12px; border-radius: 12px; background: var(--card); border-inline-start: 3px solid var(--text-faint);
+}
+.agenda-item.habit { border-inline-start-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
+.agenda-item.done { opacity: .72; }
+.agenda-item:hover { box-shadow: 0 0 0 1.5px var(--accent); }
+.agenda-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ag-time { display: flex; flex-direction: column; min-width: 46px; font-size: 13px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.ag-end { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.ag-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-title { font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; line-height: 1.3; }
+.ag-done { color: var(--accent); }
+.ag-meta { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.agenda-gap { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 2px 12px; font-size: 12px; color: var(--text-muted); }
+.gap-add { min-width: 44px; min-height: 44px; justify-content: center; }
+.gap-add svg { width: 16px; height: 16px; }
+.agenda-empty .body { margin-top: 4px; }
+
+.gc-examples { margin: 8px 0 12px; padding-inline-start: 18px; font-size: 13px; line-height: 1.6; color: var(--text); }
+.guidance-card .form-note { margin-top: 8px; }
+
+.manage { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.manage-list { display: flex; flex-direction: column; gap: 6px; }
+.manage-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px 8px 12px; border-radius: 12px; background: var(--card); }
+.manage-row.ended { opacity: .7; }
+.mr-icon { color: var(--text-muted); flex-shrink: 0; display: flex; }
+.mr-icon svg { width: 18px; height: 18px; }
+.mr-text { min-width: 0; }
+.mr-title { font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; line-height: 1.3; }
+.mr-sub { font-size: 12px; color: var(--text-muted); line-height: 1.4; margin-top: 2px; }
+.mr-tag { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.icon-btn {
+  all: unset; box-sizing: border-box; cursor: pointer; flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted);
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn:hover { background: var(--card-strong); color: var(--text); }
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Save stays readable while it waits for missing details (the reason is shown right above it). */
+.nl-preview .btn:disabled { opacity: 1; background: var(--card-strong); color: var(--text-muted); cursor: not-allowed; }
+.ag-done { display: inline-flex; vertical-align: -3px; margin-inline-end: 4px; }
+.ag-done svg { width: 16px; height: 16px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

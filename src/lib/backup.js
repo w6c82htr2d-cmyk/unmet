@@ -59,7 +59,7 @@ const SECTIONS = {
   unmet_evening: validDateMap,
   unmet_freeform: (v) => Array.isArray(v) && v.every(validFreeform),
   unmet_goals: (v) => Array.isArray(v) && v.every(validGoal),
-  unmet_calendar_view: (v) => v === 'day' || v === 'week',
+  unmet_calendar_view: (v) => v === 'agenda' || v === 'day' || v === 'week',
 };
 
 // Returns { ok: true, data } with only known sections, or { ok: false, section } naming the first

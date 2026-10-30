@@ -2,10 +2,12 @@ import { t } from '../i18n.js';
 import { icon } from '../icons.js';
 import { getMorningEntry, saveMorningEntry, todayStr } from '../db.js';
 import { navigate } from '../router.js';
+import { getDraft, saveDraft, clearDraft } from '../lib/journalDrafts.js';
 
 const IMPORTANCE_LEVELS = ['high', 'medium', 'low'];
 
 let draft = null;
+let restored = false;
 
 function freshPriorities() {
   return [0, 1, 2].map(() => ({ text: '', importance: 'medium', minutes: '' }));
@@ -14,8 +16,12 @@ function freshPriorities() {
 export function renderMorning(root) {
   const existing = getMorningEntry(todayStr());
   if (!draft) {
-    draft = existing ? existing.priorities.map((p) => ({ ...p })) : freshPriorities();
+    const saved = getDraft('morning');
+    restored = Array.isArray(saved) && saved.length === 3;
+    draft = restored ? saved.map((p) => ({ text: String(p.text || ''), importance: IMPORTANCE_LEVELS.includes(p.importance) ? p.importance : 'medium', minutes: p.minutes || '' }))
+      : existing ? existing.priorities.map((p) => ({ ...p })) : freshPriorities();
   }
+  const keep = () => saveDraft('morning', draft);
 
   root.innerHTML = `
     <div class="page">
@@ -25,6 +31,7 @@ export function renderMorning(root) {
         <div class="screen-subtitle">${t('morningSubtitle')}</div>
       </div>
       ${existing ? `<div class="label-sm">${t('alreadyLoggedMorning')}</div>` : ''}
+      ${restored ? `<div class="draft-note" role="status">${t('draftRestored')}</div>` : ''}
       <div style="font-size:12px; color:var(--text-muted);">${t('morningPrompt')}</div>
 
       <div class="col" id="priorityList">
@@ -36,24 +43,29 @@ export function renderMorning(root) {
     </div>
   `;
 
+  // Leaving keeps the on-device draft, so coming back restores it.
   root.querySelector('#backBtn').addEventListener('click', () => { draft = null; navigate('/journal'); });
 
   root.querySelectorAll('.priority-text').forEach((input) => {
-    input.addEventListener('input', () => { draft[Number(input.dataset.i)].text = input.value; });
+    input.addEventListener('input', () => { draft[Number(input.dataset.i)].text = input.value; keep(); });
   });
   root.querySelectorAll('.priority-minutes').forEach((input) => {
-    input.addEventListener('input', () => { draft[Number(input.dataset.i)].minutes = input.value; });
+    input.addEventListener('input', () => { draft[Number(input.dataset.i)].minutes = input.value; keep(); });
   });
   root.querySelectorAll('.importance-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       draft[Number(chip.dataset.i)].importance = chip.dataset.level;
+      keep();
       renderMorning(root);
+      root.querySelector(`.importance-chip[data-i="${chip.dataset.i}"][data-level="${chip.dataset.level}"]`)?.focus();
     });
   });
 
   root.querySelector('#saveBtn').addEventListener('click', () => {
     saveMorningEntry(todayStr(), draft);
+    clearDraft('morning');
     draft = null;
+    restored = false;
     navigate('/');
   });
 }
@@ -68,7 +80,7 @@ function priorityCard(p, i) {
       <div class="row between">
         <div class="row" style="gap:4px;">
           ${IMPORTANCE_LEVELS.map((lvl) => `
-            <button class="chip clickable importance-chip ${p.importance === lvl ? 'accent' : ''}" data-i="${i}" data-level="${lvl}">${t('tag' + capitalize(lvl))}</button>
+            <button class="chip clickable importance-chip ${p.importance === lvl ? 'accent' : ''}" data-i="${i}" data-level="${lvl}" aria-pressed="${p.importance === lvl}">${t('tag' + capitalize(lvl))}</button>
           `).join('')}
         </div>
         <span class="label-sm">${t('timeEstimate')}</span>

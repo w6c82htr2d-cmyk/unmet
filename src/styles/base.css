@@ -1033,3 +1033,23 @@ html[lang="ar"] .rsc-title { font-family: var(--font-ar); }
 .reminders-card h3 { margin: 0; }
 .reminders-limits { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; }
 .strong-note { color: var(--text); font-weight: 600; }
+
+/* ---------- Journals ---------- */
+.draft-note { font-size: 13px; font-weight: 600; color: var(--accent); }
+.hub-draft { font-size: 12px; font-weight: 600; color: var(--accent); margin-top: 2px; }
+.scale-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+.scale-current { text-align: center; font-size: 14px; font-weight: 700; color: var(--text); margin-top: 4px; }
+.entry-card { display: flex; flex-direction: column; gap: 6px; }
+.entry-date { font-size: 12px; color: var(--text-muted); }
+.entry-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.entry-full summary { cursor: pointer; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.entry-full summary::-webkit-details-marker { display: none; }
+.entry-preview { font-size: 14px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.entry-more { font-size: 13px; font-weight: 600; color: var(--accent); min-height: 32px; display: flex; align-items: center; }
+.entry-less { display: none; font-size: 13px; font-weight: 600; color: var(--accent); min-height: 32px; align-items: center; }
+.entry-full[open] .entry-preview, .entry-full[open] .entry-more { display: none; }
+.entry-full[open] .entry-less { display: flex; }
+.entry-full[open] summary { order: 2; }
+.entry-full[open] { display: flex; flex-direction: column; gap: 4px; }
+.entry-card .open-plan { align-self: flex-start; width: auto; gap: 6px; }
+.count-note { font-size: 14px; font-weight: 500; color: var(--text-muted); }

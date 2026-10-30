@@ -1,13 +1,16 @@
-import { t } from '../i18n.js';
+import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
 import { getFreeformEntries, addFreeformEntry, setFreeformPlan, addHabit, addGoal, isStorageError } from '../db.js';
 import { planFromJournal, isStubActive } from '../lib/aiPlan.js';
 import { splitGoal } from '../lib/taskSplitter.js';
 import { navigate } from '../router.js';
 import { micButtonHtml, wireMicButton, stopActiveDictation } from '../lib/speechToText.js';
+import { getDraft, saveDraft, clearDraft } from '../lib/journalDrafts.js';
 
 let activeTab = 'write';
-let draftText = '';
+let draftText = null; // null until read from the on-device draft
+let savedMsg = '';
+let showAll = false;
 let generating = false;
 let currentEntry = null;
 let planError = null;
@@ -25,19 +28,20 @@ export function renderFreeform(root) {
       </div>
 
       <div class="toggle-pill" id="tabs" style="align-self:flex-start;">
-        <button data-val="write" class="${activeTab === 'write' ? 'active' : ''}">${t('writeTab')}</button>
-        <button data-val="plan" class="${activeTab === 'plan' ? 'active' : ''}">${t('planTab')}</button>
+        <button data-val="write" class="${activeTab === 'write' ? 'active' : ''}" aria-pressed="${activeTab === 'write'}">${t('writeTab')}</button>
+        <button data-val="plan" class="${activeTab === 'plan' ? 'active' : ''}" aria-pressed="${activeTab === 'plan'}">${t('planTab')}</button>
       </div>
 
       <div id="tabContent"></div>
 
       ${entries.length ? `
-        <div>
-          <div class="section-head" style="margin-bottom:8px;"><span class="title">${t('savedEntries')}</span></div>
+        <section aria-labelledby="pastEntriesHeading">
+          <h3 class="section-title" id="pastEntriesHeading" style="margin-bottom:8px;">${t('savedEntries')} <span class="count-note">(${entries.length})</span></h3>
           <div class="col">
-            ${entries.slice(0, 8).map(entryRow).join('')}
+            ${(showAll ? entries : entries.slice(0, 8)).map(entryRow).join('')}
           </div>
-        </div>
+          ${entries.length > 8 && !showAll ? `<button class="btn ghost" id="showAllEntries">${t('showAllEntries', { n: entries.length })}</button>` : ''}
+        </section>
       ` : ''}
     </div>
   `;
@@ -46,6 +50,15 @@ export function renderFreeform(root) {
   root.querySelectorAll('#tabs button').forEach((btn) => {
     btn.addEventListener('click', () => { activeTab = btn.dataset.val; renderFreeform(root); });
   });
+  root.querySelector('#showAllEntries')?.addEventListener('click', () => { showAll = true; renderFreeform(root); });
+  root.querySelectorAll('.open-plan').forEach((btn) => btn.addEventListener('click', () => {
+    const entry = getFreeformEntries().find((e) => e.id === btn.dataset.id);
+    if (!entry || !entry.plan) return;
+    currentEntry = entry;
+    activeTab = 'plan';
+    renderFreeform(root);
+    window.scrollTo(0, 0);
+  }));
 
   renderTabContent(root);
 }
@@ -55,21 +68,41 @@ function renderTabContent(root) {
   const container = root.querySelector('#tabContent');
 
   if (activeTab === 'write') {
+    if (draftText === null) draftText = String(getDraft('freeform', { daily: false }) || '');
     container.innerHTML = `
       <div class="col" style="flex:1;">
         <div class="textarea-wrap">
-          <textarea class="field" id="brainDump" style="min-height:180px;" placeholder="${t('brainDumpPlaceholder')}" aria-label="${t('brainDumpPlaceholder')}">${escapeHtml(draftText)}</textarea>
+          <textarea class="field" id="brainDump" style="min-height:180px;" placeholder="${t('brainDumpPlaceholder')}" aria-label="${escapeHtml(t('freeformTitle'))}">${escapeHtml(draftText)}</textarea>
           ${micButtonHtml('journalMic')}
         </div>
-        <button class="btn primary" id="planBtn" ${generating ? 'disabled' : ''}>
+        <div class="draft-status form-note" aria-live="polite">${draftText ? t('draftKept') : ''}</div>
+        <button class="btn primary" id="saveEntryBtn" ${generating ? 'disabled' : ''}>${t('saveEntryOnly')}</button>
+        <button class="btn secondary" id="planBtn" ${generating ? 'disabled' : ''}>
           ${icon.sparkle} ${generating ? t('generatingPlan') : t('turnIntoPlan')}
         </button>
+        <p class="form-note">${t('freeformAiNote')}</p>
+        ${savedMsg ? `<div class="label-sm" role="status">${escapeHtml(savedMsg)}</div>` : ''}
         ${planError ? `<div class="label-sm" style="color:var(--danger);">${escapeHtml(planError)}</div>` : ''}
       </div>
     `;
     const textarea = container.querySelector('#brainDump');
-    textarea.addEventListener('input', (e) => { draftText = e.target.value; });
+    textarea.addEventListener('input', (e) => {
+      draftText = e.target.value;
+      savedMsg = '';
+      if (draftText.trim()) saveDraft('freeform', draftText); else clearDraft('freeform');
+      container.querySelector('.draft-status').textContent = draftText ? t('draftKept') : '';
+    });
     wireMicButton(root, 'journalMic', textarea);
+    container.querySelector('#saveEntryBtn').addEventListener('click', () => {
+      const text = textarea.value.trim();
+      if (!text) { textarea.focus(); return; }
+      addFreeformEntry(text); // stays on this device; nothing is sent anywhere
+      clearDraft('freeform');
+      draftText = '';
+      planError = null;
+      savedMsg = t('entrySavedPrivately');
+      renderFreeform(root);
+    });
     container.querySelector('#planBtn').addEventListener('click', async () => {
       const text = textarea.value.trim();
       if (!text) return;
@@ -84,6 +117,7 @@ function renderTabContent(root) {
         currentEntry = entry;
         generating = false;
         draftText = '';
+        clearDraft('freeform');
         activeTab = 'plan';
         renderFreeform(root);
       } catch (err) {
@@ -153,13 +187,19 @@ function planGoalCard(g) {
 }
 
 function entryRow(entry) {
-  const date = new Date(entry.createdAt).toLocaleDateString();
+  const date = new Date(entry.createdAt).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const long = entry.text.length > 140;
   return `
-    <div class="card">
-      <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:4px;">${date}</div>
-      <div style="font-size:12px;">${escapeHtml(entry.text.slice(0, 120))}${entry.text.length > 120 ? '…' : ''}</div>
-      ${entry.plan ? `<div class="chip solid" style="margin-top:6px;">${entry.plan.goals.length} ${t('yourGoals')}</div>` : ''}
-    </div>
+    <article class="card entry-card">
+      <div class="entry-date">${escapeHtml(date)}</div>
+      ${long ? `
+        <details class="entry-full">
+          <summary><span class="entry-preview">${escapeHtml(entry.text.slice(0, 140))}…</span><span class="entry-more">${t('readFullEntry')}</span><span class="entry-less">${t('showLessEntry')}</span></summary>
+          <div class="entry-text">${escapeHtml(entry.text)}</div>
+        </details>
+      ` : `<div class="entry-text">${escapeHtml(entry.text)}</div>`}
+      ${entry.plan ? `<button class="btn secondary sm open-plan" data-id="${entry.id}">${icon.sparkle} ${t('openEntryPlan', { n: entry.plan.goals.length })}</button>` : ''}
+    </article>
   `;
 }
 

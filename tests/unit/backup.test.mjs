@@ -109,3 +109,21 @@ test('goal delete can be undone exactly', () => {
   assert.equal(localStorage.getItem('unmet_goals'), before);
   assert.equal(db.removeGoal('missing'), null);
 });
+
+test('values that would land in HTML attributes or unescaped spots are rejected', () => {
+  const evil = '" onmouseover="alert(1)';
+  const bad = [
+    { unmet_habits: [{ id: evil, name: 'x', history: {} }] },
+    { unmet_habits: [{ id: 'h', name: 'x', history: {}, stackEventIds: [evil] }] },
+    { unmet_events: [{ id: 'e', seriesId: evil, title: 't', type: 'once', date: '2026-10-01', start: '08:00', end: '09:00' }] },
+    { unmet_events: [{ id: 'e', title: 't', type: 'weekly', dayOfWeek: 1, startDate: '<img src=x onerror=alert(1)>', start: '08:00', end: '09:00' }] },
+    { unmet_goals: [{ id: 'g', text: 't', subtasks: [{ id: evil, text: 's' }] }] },
+    { unmet_freeform: [{ id: 'f', text: 't', plan: { goals: 'nope' } }] },
+    { unmet_profile: { firstName: 'x'.repeat(101) } },
+    { unmet_profile: { goalTracks: [evil] } },
+  ];
+  for (const data of bad) assert.equal(backup.validateImportData(data).ok, false, JSON.stringify(data).slice(0, 80));
+  // Markup inside free text is allowed as data — pages escape it when rendering.
+  assert.ok(backup.validateImportData({ unmet_profile: { firstName: '<b>Lay</b>' } }).ok);
+  assert.ok(backup.validateImportData({ unmet_events: [{ id: 'abc123@google.com', title: '<i>x</i>', type: 'once', date: '2026-10-01', start: '08:00', end: '09:00' }] }).ok);
+});

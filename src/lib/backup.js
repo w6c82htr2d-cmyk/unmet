@@ -10,37 +10,48 @@ const BACKUP_KEY = 'unmet_backup';
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 const MAX_TEXT = 20000;
 const TIME_RE = /^\d{2}:\d{2}$/;
+// Ids end up inside HTML attributes (data-id="…"), so only characters that can't break out of one.
+const ID_RE = /^[A-Za-z0-9_.:@-]{1,100}$/;
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v, max = MAX_TEXT) => typeof v === 'string' && v.length <= max;
 const isOptStr = (v, max) => v === undefined || v === null || isStr(v, max);
+const isId = (v) => typeof v === 'string' && ID_RE.test(v);
+const isOptId = (v) => v === undefined || v === null || isId(v);
+const isOptDate = (v) => v === undefined || v === null || isDateStr(v);
 
 function validHabit(h) {
-  return isObj(h) && isStr(h.id, 100) && isStr(h.name, 500)
+  return isObj(h) && isId(h.id) && isStr(h.name, 500)
     && (h.history === undefined || (isObj(h.history) && Object.entries(h.history).every(([k, v]) => isDateStr(k) && (v === null || ['boolean', 'number'].includes(typeof v)))))
     && (h.scheduleType === undefined || h.scheduleType === 'independent' || h.scheduleType === 'stacked')
     && (h.days === undefined || (Array.isArray(h.days) && h.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)))
-    && (h.stackEventIds === undefined || (Array.isArray(h.stackEventIds) && h.stackEventIds.every((id) => isStr(id, 100))))
+    && (h.stackEventIds === undefined || (Array.isArray(h.stackEventIds) && h.stackEventIds.every(isId)))
+    && isOptStr(h.createdAt, 40)
     && isOptStr(h.time, 5) && isOptStr(h.stackAfter, 500);
 }
 
 function validEvent(e) {
-  return isObj(e) && isStr(e.id, 100) && isStr(e.title, 500)
+  return isObj(e) && isId(e.id) && isOptId(e.seriesId) && isStr(e.title, 500)
     && (e.type === 'once' || e.type === 'weekly')
     && isStr(e.start, 5) && TIME_RE.test(e.start) && isStr(e.end, 5) && TIME_RE.test(e.end)
     && (e.type !== 'once' || isDateStr(e.date))
     && (e.type !== 'weekly' || (Number.isInteger(e.dayOfWeek) && e.dayOfWeek >= 0 && e.dayOfWeek <= 6))
+    && isOptDate(e.startDate) && isOptDate(e.endDate)
     && (e.excludeDates === undefined || (Array.isArray(e.excludeDates) && e.excludeDates.every(isDateStr)));
 }
 
 const validDateMap = (m) => isObj(m) && Object.entries(m).every(([k, v]) => isDateStr(k) && isObj(v));
-const validFreeform = (f) => isObj(f) && isStr(f.id, 100) && isStr(f.text);
-const validGoal = (g) => isObj(g) && isStr(g.id, 100) && isStr(g.text, 2000)
-  && Array.isArray(g.subtasks) && g.subtasks.every((s) => isObj(s) && isStr(s.id, 100) && isStr(s.text, 2000));
+const validPlan = (p) => p === null || p === undefined
+  || (isObj(p) && Array.isArray(p.goals) && p.goals.every((g) => isObj(g) && isStr(g.text, 2000) && (g.firstStep === undefined || isObj(g.firstStep))));
+const validFreeform = (f) => isObj(f) && isId(f.id) && isStr(f.text) && validPlan(f.plan);
+const validGoal = (g) => isObj(g) && isId(g.id) && isStr(g.text, 2000)
+  && Array.isArray(g.subtasks) && g.subtasks.every((s) => isObj(s) && isId(s.id) && isStr(s.text, 2000));
+const validProfile = (p) => p === null || (isObj(p) && isOptStr(p.firstName, 100)
+  && (p.goalTracks === undefined || (Array.isArray(p.goalTracks) && p.goalTracks.every(isId))));
 
 // Section key → validator. Keys mirror db.js KEYS (the export format).
 const SECTIONS = {
-  unmet_profile: (v) => v === null || isObj(v),
+  unmet_profile: validProfile,
   unmet_habits: (v) => Array.isArray(v) && v.every(validHabit),
   unmet_events: (v) => Array.isArray(v) && v.every(validEvent),
   unmet_morning: validDateMap,

@@ -145,7 +145,7 @@ export function renderHome(root) {
         <div class="row between">
           <div>
             <div class="label-sm">${t(greetingKey())}</div>
-            <div class="value-lg">${profile?.firstName || ''}</div>
+            <div class="value-lg">${escapeHtml(profile?.firstName || '')}</div>
           </div>
           <div class="icon-circle filled">${greetingIcon()}</div>
         </div>

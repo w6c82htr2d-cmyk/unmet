@@ -104,3 +104,19 @@ test(`[${TZ}] weekly statistics cover the last 7 local days with the right denom
   const thu = week.find((d) => d.date === '2026-10-22');
   assert.equal(thu.scheduledCount, 1); // class excluded that day → only Read
 });
+
+test(`[${TZ}] event delete undo restores the exact rows, order and habit links`, () => {
+  const before = localStorage.getItem('unmet_events');
+  const habit = () => db.getHabits().find((h) => h.id === 'stack');
+  for (const del of [
+    () => db.removeEventSeries('cls'),
+    () => db.removeEvent('c2'),
+    () => db.removeEventOccurrence('cls', '2026-10-27'),
+  ]) {
+    const snap = db.snapshotEventSeries('cls');
+    del();
+    db.restoreEventSeries(snap);
+    assert.equal(localStorage.getItem('unmet_events'), before);
+    assert.ok(db.habitOccursOnDate(habit(), '2026-10-27'));
+  }
+});

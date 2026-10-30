@@ -4,7 +4,9 @@ import {
   getEvents, addEvent, removeEvent, removeEventSeries, updateEvent, updateEventSeries, updateEventOccurrence,
   removeEventOccurrence, eventsForDate, habitsForDate, todayStr, dayOfWeek, addDays, uid,
   habitLinkedEventTitles, updateHabit, getCalendarView, setCalendarView, getHabits, hasRoutines,
+  snapshotEventSeries, restoreEventSeries,
 } from '../db.js';
+import { showUndoToast } from '../lib/undoToast.js';
 import { weekdayKey } from '../lib/patterns.js';
 import { dateForDisplay } from '../lib/dates.js';
 import { navigate } from '../router.js';
@@ -846,19 +848,35 @@ function wireEventModal(root) {
 
   root.querySelector('#deleteEventBtn').addEventListener('click', () => {
     const { event: ev, scope } = editingEvent;
+    const snapshot = snapshotEventSeries(ev.seriesId);
     if (ev.type === 'once') removeEvent(ev.id);
     else if (scope === 'series') removeEventSeries(ev.seriesId);
     else removeEventOccurrence(ev.seriesId, selectedDate);
     editingEvent = null;
     renderCalendar(root);
+    offerEventUndo(root, snapshot);
   });
 }
 
 // ---------- Full event management list (all events, any date) ----------
 
+function offerEventUndo(root, snapshot) {
+  showUndoToast(t('eventRemovedToast'), t('undoBtn'), () => {
+    restoreEventSeries(snapshot);
+    renderCalendar(root);
+  });
+}
+
 function wireManageList(root) {
   root.querySelectorAll('.event-remove').forEach((btn) => {
-    btn.addEventListener('click', () => { removeEvent(btn.dataset.id); renderCalendar(root); });
+    btn.addEventListener('click', () => {
+      const ev = getEvents().find((e) => e.id === btn.dataset.id);
+      if (!ev) return;
+      const snapshot = snapshotEventSeries(ev.seriesId);
+      removeEvent(ev.id);
+      renderCalendar(root);
+      offerEventUndo(root, snapshot);
+    });
   });
   root.querySelectorAll('.event-edit').forEach((btn) => {
     btn.addEventListener('click', () => {

@@ -426,6 +426,25 @@ export function removeEventSeries(seriesId) {
   saveEvents(getEvents().filter((e) => e.seriesId !== seriesId));
 }
 
+// Undo support for event deletes: capture every row of a series (and where it sat in the list)
+// before a delete, then put exactly those rows back. Ids are unchanged, so stacked habits that
+// pointed at them are linked again automatically.
+export function snapshotEventSeries(seriesId) {
+  const events = getEvents();
+  return {
+    seriesId,
+    index: events.findIndex((e) => e.seriesId === seriesId),
+    rows: events.filter((e) => e.seriesId === seriesId).map((e) => JSON.parse(JSON.stringify(e))),
+  };
+}
+
+export function restoreEventSeries(snapshot) {
+  const others = getEvents().filter((e) => e.seriesId !== snapshot.seriesId);
+  const at = snapshot.index < 0 ? others.length : Math.min(snapshot.index, others.length);
+  others.splice(at, 0, ...snapshot.rows);
+  saveEvents(others);
+}
+
 export function updateEvent(id, updates) {
   const events = getEvents();
   const ev = events.find((e) => e.id === id);

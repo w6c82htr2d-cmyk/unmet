@@ -16,7 +16,7 @@ function redisConfig() {
   return url && token ? { url, token } : null;
 }
 
-async function redisPipeline(commands) {
+export async function redisPipeline(commands) {
   const cfg = redisConfig();
   if (!cfg) throw new Error('redis-not-configured');
   const res = await fetch(`${cfg.url}/pipeline`, {
@@ -89,6 +89,22 @@ export async function checkRateLimits(limits, now = Date.now()) {
   return { allowed: true, store };
 }
 
+// Reads a limit's current count without counting this request (e.g. "has this client already used
+// up its wrong-code allowance?"). Same store and fallback as checkRateLimits.
+export async function isOverLimit(l, now = Date.now()) {
+  const windowStart = Math.floor(now / 1000 / l.windowSec) * l.windowSec;
+  const key = `${l.key}:${windowStart}`;
+  let count;
+  try {
+    const [value] = await redisPipeline([['GET', key]]);
+    count = Number(value) || 0;
+  } catch {
+    const entry = memory.get(key);
+    count = entry && entry.resetAt > now ? entry.count : 0;
+  }
+  return count >= l.limit;
+}
+
 // Daily aggregate counters (kept 90 days). Best effort: monitoring must never break a request.
 export async function recordUsage(route, fields, now = new Date()) {
   const day = now.toISOString().slice(0, 10);
@@ -108,6 +124,23 @@ export async function recordUsage(route, fields, now = new Date()) {
 // One JSON line per event in the function logs. Callers must never pass user text or secrets.
 export function logEvent(event, data = {}) {
   console.log(JSON.stringify({ event, ...data, at: new Date().toISOString() }));
+}
+
+// Defence in depth only (rate limits are the real control): stop other websites from making
+// visitors' browsers call our endpoints. Requests without an Origin header (non-browser clients)
+// are not blocked here; they're limited like everyone else.
+export function originAllowed(origin) {
+  if (!origin) return true;
+  const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
+  if (extra.includes(origin)) return true;
+  try {
+    const { protocol, hostname } = new URL(origin);
+    if (hostname === 'getunmet.com' || hostname === 'www.getunmet.com') return protocol === 'https:';
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+    return protocol === 'https:' && hostname.endsWith('.vercel.app') && hostname.startsWith('unmet');
+  } catch {
+    return false;
+  }
 }
 
 // Only for tests.

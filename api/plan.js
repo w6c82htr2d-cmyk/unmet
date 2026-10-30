@@ -16,7 +16,7 @@
 // messages (details go to the function logs only), and daily usage counters.
 // None of it changes the model call or the shape of a successful response.
 
-import { checkRateLimits, clientIp, hashClient, recordUsage, logEvent } from './_lib/guard.js';
+import { checkRateLimits, clientIp, hashClient, recordUsage, logEvent, originAllowed } from './_lib/guard.js';
 
 // Limits: generous for real use (a plan takes a minute of writing), tight enough that a script
 // can't run up the bill. PLAN_DAILY_LIMIT caps all users together per UTC day.
@@ -28,23 +28,6 @@ function planLimits(clientId) {
     { name: 'daily', key: `unmet:rl:plan:c:${clientId}:1d`, limit: 40, windowSec: 86400 },
     { name: 'global', key: 'unmet:rl:plan:all:1d', limit: Number(process.env.PLAN_DAILY_LIMIT) || 2000, windowSec: 86400 },
   ];
-}
-
-// Defence in depth only (rate limits are the real control): stop other websites from making
-// visitors' browsers call this endpoint. Requests without an Origin header (non-browser clients)
-// are not blocked here, they're limited like everyone else.
-function originAllowed(origin) {
-  if (!origin) return true;
-  const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
-  if (extra.includes(origin)) return true;
-  try {
-    const { protocol, hostname } = new URL(origin);
-    if (hostname === 'getunmet.com' || hostname === 'www.getunmet.com') return protocol === 'https:';
-    if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
-    return protocol === 'https:' && hostname.endsWith('.vercel.app') && hostname.startsWith('unmet');
-  } catch {
-    return false;
-  }
 }
 
 function sendError(res, status, code, message) {

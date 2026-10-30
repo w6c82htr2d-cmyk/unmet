@@ -5,7 +5,7 @@ import { getProfile, saveProfile, exportAll, resetAll } from '../db.js';
 import { parseImportText, summarize, saveBackup, getBackup, applyImport, restoreBackup, downloadJson } from '../lib/backup.js';
 import { icon } from '../icons.js';
 import { navigate } from '../router.js';
-import { generateCode, getSavedCode, saveCodeLocally, forgetCodeLocally, pushToCode, pullFromCode } from '../lib/sync.js';
+import { generateCode, getSavedCode, saveCodeLocally, forgetCodeLocally, pushToCode, pullFromCode, deleteRemoteCopy, normalizeCode, formatCode, getSyncMeta } from '../lib/sync.js';
 
 let syncStatus = '';
 let syncBusy = false;
@@ -212,6 +212,22 @@ function backupHtml() {
   `;
 }
 
+function syncMetaHtml() {
+  const meta = getSyncMeta();
+  const fmt = (iso, withTime) => new Date(iso).toLocaleString(getLang() === 'ar' ? 'ar' : 'en-US', withTime
+    ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+    : { year: 'numeric', month: 'short', day: 'numeric' });
+  const lines = [];
+  if (meta.lastPush) lines.push(t('syncLastUpload', { when: fmt(meta.lastPush, true) }));
+  if (meta.expiresAt) lines.push(t('syncKeptUntil', { date: fmt(meta.expiresAt, false) }));
+  return lines.length ? `<div class="label-sm">${escapeHtml(lines.join(' · '))}</div>` : '';
+}
+
+// Server error codes → friendly messages.
+function syncErrorText(err) {
+  return t({ conflict: 'syncConflict', rate_limited: 'syncRateLimited', not_found: 'syncNotFound' }[err?.code] || 'syncError');
+}
+
 function syncSectionHtml() {
   const code = getSavedCode();
   return `
@@ -223,13 +239,15 @@ function syncSectionHtml() {
         <div class="row between" style="background:var(--card-strong); border-radius:10px; padding:10px 12px;">
           <div>
             <div class="label-sm">${t('yourSyncCode')}</div>
-            <div style="font-family:monospace; font-size:16px; font-weight:700; letter-spacing:2px;">${escapeAttr(code)}</div>
+            <div style="font-family:monospace; font-size:16px; font-weight:700; letter-spacing:2px;" dir="ltr">${escapeHtml(formatCode(code))}</div>
           </div>
           <button class="chip clickable" id="copyCodeBtn">${icon.copy} ${t('copyCode')}</button>
         </div>
         <button class="btn secondary" id="pushBtn" ${syncBusy ? 'disabled' : ''}>${t('pushNowBtn')}</button>
         <button class="btn secondary" id="pullBtn" ${syncBusy ? 'disabled' : ''}>${t('pullLatestBtn')}</button>
+        ${syncMetaHtml()}
         <button class="btn ghost" id="stopSyncBtn">${t('stopSyncBtn')}</button>
+        <button class="btn ghost" id="deleteSyncedBtn" style="color:var(--danger);">${t('deleteSyncedBtn')}</button>
       ` : `
         <button class="btn secondary" id="getCodeBtn" ${syncBusy ? 'disabled' : ''}>${t('getCodeBtn')}</button>
         <label class="label-sm" style="margin-top:6px;">${t('haveCodeLabel')}</label>
@@ -239,8 +257,9 @@ function syncSectionHtml() {
         </div>
       `}
 
-      ${syncStatus ? `<div class="label-sm">${escapeAttr(syncStatus)}</div>` : ''}
+      ${syncStatus ? `<div class="label-sm" role="status">${escapeHtml(syncStatus)}</div>` : ''}
       <div class="label-sm">${t('syncNotAutomaticNote')}</div>
+      <div class="label-sm">${t('syncExpiryNote')}</div>
     </div>
   `;
 }
@@ -257,8 +276,8 @@ function wireSyncSection(root) {
         await pushToCode(code);
         saveCodeLocally(code);
         syncStatus = t('syncPushSuccess');
-      } catch {
-        syncStatus = t('syncError');
+      } catch (err) {
+        syncStatus = syncErrorText(err);
       }
       syncBusy = false;
       renderSettings(root);
@@ -269,7 +288,7 @@ function wireSyncSection(root) {
   if (loadCodeBtn) {
     loadCodeBtn.addEventListener('click', async () => {
       const input = root.querySelector('#enterCodeInput');
-      const code = input.value.trim().toUpperCase();
+      const code = normalizeCode(input.value);
       if (!code) return;
       if (!confirm(t('syncPullConfirm'))) return;
       syncBusy = true;
@@ -282,8 +301,8 @@ function wireSyncSection(root) {
         renderSettings(root);
         location.reload();
         return;
-      } catch {
-        syncStatus = t('syncError');
+      } catch (err) {
+        syncStatus = syncErrorText(err);
       }
       syncBusy = false;
       renderSettings(root);
@@ -300,8 +319,8 @@ function wireSyncSection(root) {
       try {
         await pushToCode(code);
         syncStatus = t('syncPushSuccess');
-      } catch {
-        syncStatus = t('syncError');
+      } catch (err) {
+        syncStatus = syncErrorText(err);
       }
       syncBusy = false;
       renderSettings(root);
@@ -322,8 +341,8 @@ function wireSyncSection(root) {
         renderSettings(root);
         location.reload();
         return;
-      } catch {
-        syncStatus = t('syncError');
+      } catch (err) {
+        syncStatus = syncErrorText(err);
       }
       syncBusy = false;
       renderSettings(root);
@@ -336,6 +355,24 @@ function wireSyncSection(root) {
       if (!confirm(t('syncStopConfirm'))) return;
       forgetCodeLocally();
       syncStatus = '';
+      renderSettings(root);
+    });
+  }
+
+  const deleteSyncedBtn = root.querySelector('#deleteSyncedBtn');
+  if (deleteSyncedBtn) {
+    deleteSyncedBtn.addEventListener('click', async () => {
+      if (!confirm(t('deleteSyncedConfirm'))) return;
+      syncBusy = true;
+      syncStatus = '';
+      renderSettings(root);
+      try {
+        await deleteRemoteCopy(getSavedCode());
+        syncStatus = t('syncDeleted');
+      } catch (err) {
+        syncStatus = syncErrorText(err);
+      }
+      syncBusy = false;
       renderSettings(root);
     });
   }

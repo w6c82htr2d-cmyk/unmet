@@ -668,3 +668,24 @@ button:focus:not(:focus-visible) { outline: none; }
 .sw-title { font-size: 14px; font-weight: 800; color: var(--danger); }
 .sw-body { font-size: 13px; line-height: 1.5; color: var(--text); }
 .sw-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ---------- Sign-in / create account ---------- */
+.auth-wrap { gap: 18px; }
+.auth-spacer { flex: 1; min-height: 8px; }
+.auth-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; margin-top: 12px; }
+.auth-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.auth-brand .brand-mark { width: 44px; height: 44px; }
+.auth-brand .brand-name { font-size: 18px; }
+.auth-title { font-size: 28px; line-height: 1.15; margin: 0; letter-spacing: -0.3px; max-width: 360px; }
+.auth-sub { font-size: 14px; line-height: 1.55; color: var(--text-muted); margin: 0; max-width: 360px; }
+.auth-actions, .auth-form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 400px; margin: 0 auto; }
+.auth-fine { font-size: 12px; line-height: 1.5; color: var(--text-muted); text-align: center; margin: 0; }
+.auth-code { font-size: 24px; letter-spacing: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+.auth-error { font-size: 13px; line-height: 1.5; color: var(--danger); }
+.auth-notice { font-size: 13px; color: var(--success); }
+.auth-secondary { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.auth-wrap .btn.ghost { width: auto; align-self: center; }
+.account-line { font-size: 14px; line-height: 1.5; color: var(--text); }
+.account-email { font-weight: 700; }
+/* The resend countdown is information, so it stays readable while the button is disabled. */
+.auth-secondary .btn:disabled { opacity: 1; color: var(--text-muted); cursor: default; }

@@ -5,12 +5,15 @@ import { getProfile, saveProfile, exportAll, resetAll } from '../db.js';
 import { parseImportText, summarize, saveBackup, getBackup, applyImport, restoreBackup, downloadJson } from '../lib/backup.js';
 import { icon } from '../icons.js';
 import { navigate } from '../router.js';
+import { authAvailable, getCurrentUser, signOut } from '../lib/auth.js';
 import { generateCode, getSavedCode, saveCodeLocally, forgetCodeLocally, pushToCode, pullFromCode, deleteRemoteCopy, normalizeCode, formatCode, getSyncMeta } from '../lib/sync.js';
 
 let syncStatus = '';
 let syncBusy = false;
 let importPreview = null; // { name, data } — a validated file waiting for the user's confirmation
 let dataMessage = ''; // result/error line shown in the "Your data" card
+let accountMessage = '';
+let accountBusy = false;
 
 const GOAL_TRACKS = [
   { id: 'gpa', label: 'goalGPA', icon: 'bookGoal' },
@@ -28,6 +31,8 @@ export function renderSettings(root) {
     <div class="page">
       <button class="back-row" id="backBtn">${icon.back} ${t('back')}</button>
       <h2 class="screen-title">${t('settingsTitle')}</h2>
+
+      ${accountSectionHtml()}
 
       <div class="card col">
         <label class="label-sm" for="nameInput">${t('yourName')}</label>
@@ -162,14 +167,67 @@ export function renderSettings(root) {
     });
   }
 
-  root.querySelector('#resetBtn').addEventListener('click', () => {
+  root.querySelector('#resetBtn').addEventListener('click', async () => {
     if (confirm(t('resetConfirm'))) {
+      if (getCurrentUser()) await signOut().catch(() => {});
       resetAll();
       location.reload();
     }
   });
 
   wireSyncSection(root);
+  wireAccountSection(root);
+}
+
+// Account: hidden entirely when accounts aren't configured for this build (e.g. production for now).
+function accountSectionHtml() {
+  if (!authAvailable()) return '';
+  const user = getCurrentUser();
+  const msg = accountMessage ? `<div class="label-sm" role="status">${escapeHtml(accountMessage)}</div>` : '';
+  if (!user) {
+    return `
+      <div class="card col" aria-labelledby="accountHeading">
+        <div class="label-sm" id="accountHeading">${t('accountHeading')}</div>
+        <div class="account-line">${t('accountGuestBody')}</div>
+        <button class="btn primary" id="accountSignInBtn">${t('accountSignInBtn')}</button>
+        ${msg}
+      </div>
+    `;
+  }
+  return `
+    <div class="card col" aria-labelledby="accountHeading">
+      <div class="label-sm" id="accountHeading">${t('accountHeading')}</div>
+      <div class="account-line">${t('accountSignedInAs')} <bdi dir="ltr" class="account-email">${escapeHtml(user.email || '')}</bdi></div>
+      <div class="label-sm">${t('accountLocalNote')}</div>
+      <div class="row" style="gap:8px;">
+        <button class="btn secondary grow" id="signOutBtn" ${accountBusy ? 'disabled' : ''}>${t('signOutBtn')}</button>
+        <button class="btn secondary grow" id="signOutAllBtn" ${accountBusy ? 'disabled' : ''}>${t('signOutAllBtn')}</button>
+      </div>
+      ${msg}
+    </div>
+  `;
+}
+
+function wireAccountSection(root) {
+  root.querySelector('#accountSignInBtn')?.addEventListener('click', () => {
+    accountMessage = '';
+    navigate('/account');
+  });
+  const doSignOut = async (everywhere) => {
+    accountBusy = true;
+    accountMessage = '';
+    renderSettings(root);
+    try {
+      await signOut({ everywhere });
+      accountMessage = t('signedOutNotice');
+    } catch {
+      accountMessage = t('signOutAllFailed');
+    }
+    accountBusy = false;
+    renderSettings(root);
+  };
+  root.querySelector('#signOutBtn')?.addEventListener('click', () => doSignOut(false));
+  root.querySelector('#signOutAllBtn')?.addEventListener('click', () => doSignOut(true));
 }
 
 function summaryLineHtml(data) {

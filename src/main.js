@@ -19,6 +19,9 @@ import { renderHelp } from './pages/help.js';
 import { endTour } from './lib/tour.js';
 import { stopActiveDictation } from './lib/speechToText.js';
 import { dismissUndoToast } from './lib/undoToast.js';
+import { brandMarkSvg } from './lib/brand.js';
+import { authAvailable, initAuth, onUserChange } from './lib/auth.js';
+import { renderAuth, stopAuthTimers } from './pages/auth.js';
 import { showStorageWarning, storageWorks } from './lib/storageWarning.js';
 
 const NAV_ITEMS = [
@@ -28,15 +31,6 @@ const NAV_ITEMS = [
   { path: '/tasks', icon: 'tasks', label: 'navTasks' },
 ];
 
-function brandMarkSvg() {
-  return `<svg class="brand-mark" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
-    <defs><linearGradient id="rgTop" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7FA6D6"/><stop offset="50%" stop-color="#3E699E"/><stop offset="100%" stop-color="#1F3A5C"/>
-    </linearGradient></defs>
-    <polygon points="400,70 660,220 660,580 400,730 140,580 140,220" fill="none" stroke="#9C9CA3" stroke-width="10" opacity="0.5"/>
-    <path d="M 200 260 Q 400 780 600 260" fill="none" stroke="url(#rgTop)" stroke-width="60" stroke-linecap="round"/>
-  </svg>`;
-}
 
 function renderShell() {
   const app = document.getElementById('app');
@@ -73,6 +67,7 @@ function renderShell() {
   registerRoute('/tasks', renderTasks);
   registerRoute('/insight', renderInsight);
   registerRoute('/settings', renderSettings);
+  registerRoute('/account', renderAccountRoute);
   setNotFound(renderHome);
 
   onRouteChange((path) => {
@@ -80,6 +75,7 @@ function renderShell() {
     endTour();
     stopActiveDictation();
     dismissUndoToast();
+    stopAuthTimers();
   });
 
   startRouter();
@@ -106,7 +102,7 @@ function watchOtherTabs() {
   window.addEventListener('storage', (e) => {
     if (e.key === 'unmet_theme') { applyThemeFromStorage(); return; }
     if (e.key !== null && !e.key.startsWith('unmet_')) return;
-    if (e.key === 'unmet_lang' || e.key === 'unmet_backup' || e.key === 'unmet_probe') return;
+    if (['unmet_lang', 'unmet_backup', 'unmet_probe', 'unmet_auth', 'unmet_auth_choice'].includes(e.key)) return;
     pending = true;
     refresh();
   });
@@ -163,17 +159,60 @@ export function rerenderShellChrome() {
   renderShell();
 }
 
+// Settings → Account → "Sign in or create account" (inside the app, for people already using it).
+function renderAccountRoute(root) {
+  if (!authAvailable()) { navigate('/settings'); return; }
+  renderAuth({
+    container: root,
+    standalone: false,
+    start: 'welcome',
+    onSignedIn: () => navigate('/settings'),
+    onCancel: () => navigate('/settings'),
+  });
+}
+
+const AUTH_CHOICE_KEY = 'unmet_auth_choice'; // the new-visitor welcome was answered (guest or signed in)
+
+function authChoiceMade() {
+  try {
+    return localStorage.getItem(AUTH_CHOICE_KEY) !== null;
+  } catch {
+    return true;
+  }
+}
+
+function rememberAuthChoice(choice) {
+  try {
+    localStorage.setItem(AUTH_CHOICE_KEY, choice);
+  } catch {
+    // Not remembered: the welcome may show again next visit, which is harmless.
+  }
+}
+
 function boot() {
   document.documentElement.setAttribute('data-theme', getTheme());
   watchStorageFailures(); // first, so even onboarding saves are covered
   watchForNewDay();
   watchOtherTabs();
-  if (!isOnboarded()) {
-    renderOnboarding(() => {
-      renderShell();
+  initAuth();
+  onUserChange(() => {
+    const [base] = currentPath().split('?');
+    if (base === '/settings' && isOnboarded()) rerenderCurrentRoute();
+  });
+  const startOnboarding = () => renderOnboarding(() => renderShell());
+  if (isOnboarded()) {
+    renderShell();
+  } else if (authAvailable() && !authChoiceMade()) {
+    // New visitor: offer an account, never require one.
+    renderAuth({
+      container: document.getElementById('app'),
+      standalone: true,
+      start: 'welcome',
+      onGuest: () => { rememberAuthChoice('guest'); startOnboarding(); },
+      onSignedIn: () => { rememberAuthChoice('account'); startOnboarding(); },
     });
   } else {
-    renderShell();
+    startOnboarding();
   }
 }
 

@@ -24,7 +24,7 @@ function progressBar() {
   return `<div class="onboard-progress">${[0, 1, 2, 3, 4].map((i) => `<div class="seg ${i <= step ? 'on' : ''}"></div>`).join('')}</div>`;
 }
 
-function topControls() {
+export function topControls() {
   const lang = getLang();
   const theme = getTheme();
   return `
@@ -41,7 +41,7 @@ function topControls() {
   `;
 }
 
-function wireTopControls(container, rerender) {
+export function wireTopControls(container, rerender) {
   container.querySelector('#themeToggle').addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;

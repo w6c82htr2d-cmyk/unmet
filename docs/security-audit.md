@@ -1,6 +1,6 @@
 # UNMET — Security, Privacy & Reliability Audit
 
-**Date:** 2026-10-30
+**Date:** 2026-10-30 (updated after the remediation phase the same day)
 **Scope:** branch `claude/unmet-website-build-se4jge`, after Phase 0b and the `/api/plan` hardening.
 
 **Method:**
@@ -23,19 +23,19 @@
 | F1 | Stored XSS through the profile name in an imported file or sync-code payload | High | **Fixed** (40b22be) |
 | F2 | Backup import overwrote data without validation, confirmation or backup | High | **Fixed** (aef0517) |
 | F3 | `/api/plan` open to unlimited scripted use (Anthropic cost) and leaked error details | High | **Fixed** (20c3495) |
-| F4 | Sync codes: bearer secret with no rate limit, plaintext journals, overwritable, silent 6-month expiry | **High** | Open, recommendation below |
-| F5 | No Content-Security-Policy or security headers on the site | Medium | Open |
-| F6 | Storage-full errors are unhandled: a check-off or entry silently isn't saved | Medium | Open |
-| F7 | No privacy policy, though journal text goes to Anthropic (AI planning), Upstash (sync) and Google/Apple (dictation) | Medium | Open |
+| F4 | Sync codes: bearer secret with no rate limit, plaintext journals, overwritable, silent 6-month expiry | **High → Medium** | **Mostly fixed** (1bac54c): rate limits, wrong-code lockout, 12-char codes, conflict protection, delete, visible expiry. **Open:** encryption (format change, needs approval, plan below) |
+| F5 | No Content-Security-Policy or security headers on the site | Medium | **Fixed** (9b428ce), tested against the production build |
+| F6 | Storage-full errors are unhandled: a check-off or entry silently isn't saved | Medium | **Fixed** (655229c) |
+| F7 | No privacy policy, though journal text goes to Anthropic (AI planning), Upstash (sync) and Google/Apple (dictation) | Medium | **Draft ready for owner review** (`docs/privacy-policy-draft.md`); not published |
 | F8 | Journals stored in plaintext in `localStorage` (shared devices, browser extensions) | Medium | Accepted for beta, mitigations below |
 | F9 | Date handling saved completions under the wrong day outside UTC | High (integrity) | **Fixed** (af619b8). Past shifted records left as they are, by decision. |
 | F10 | Deleting events or goals could not be undone | Medium (integrity) | **Fixed** (5e54324, 1435bdd) |
-| F11 | `/api/sync` returns internal error details (`String(err)`) | Low | Open |
-| F12 | Dev-only dependency advisories (esbuild dev server, source-map-js) | Low | Open; needs approval to update dependencies |
+| F11 | `/api/sync` returns internal error details (`String(err)`) | Low | **Fixed** (1bac54c) |
+| F12 | Dev-only dependency advisories (esbuild dev server, source-map-js) | Low | source-map-js **fixed** (e0a4a5a). esbuild/vite needs a Vite major upgrade: approval needed |
 | F13 | Google Fonts loaded from Google's servers on every visit (IP disclosed to a third party) | Low | Open |
-| F14 | Site can be framed (no `frame-ancestors`) | Low | Open; covered by the F5 headers |
-| F15 | A second open tab shows stale data until it re-renders (no lost writes) | Low | Open |
-| F16 | `index.html` starts as `data-theme="light"`, so dark-mode users see a brief flash | Low | Open |
+| F14 | Site can be framed (no `frame-ancestors`) | Low | **Fixed** (9b428ce) |
+| F15 | A second open tab shows stale data until it re-renders (no lost writes) | Low | **Fixed** (f4641b0) |
+| F16 | `index.html` starts as `data-theme="light"`, so dark-mode users see a brief flash | Low | **Fixed** (f4641b0), also the Arabic right-to-left flip |
 | F17 | The IP-based rate limit can be spread across many IPs | Low (residual) | Mitigated by the global cap; recommend the Anthropic Console spend limit |
 
 **Secrets:**
@@ -236,6 +236,53 @@ Each visit requests fonts from Google, which discloses the visitor's IP to Googl
   - layouts checked at 390px and 1440px with no horizontal overflow
   - every screen passes the automated text-size, contrast, tap-target and labelling audit, in dark, light and Arabic
   - **Not tested:** Safari/WebKit (only Chromium is available in this environment), and real devices
+
+
+## Remediation update (2026-10-30)
+
+### F4: what changed, and the encryption proposal
+Done without changing the data format or invalidating any code (1bac54c):
+- **Code length:** new codes are 12 characters (about 60 bits). Existing shorter codes keep working.
+- **Guessing:** a client gets 10 wrong-code pulls per hour, after which all its pulls are refused for the hour.
+- **Rate limits:** per-client limits on pull, push and delete, plus per-client and global limits on creating new codes.
+- **Conflicts:** a push based on stale data gets a 409 instead of overwriting another device's newer data. Old clients that send no revision are still accepted.
+- **Delete:** new "Delete the synced copy" action.
+- **Expiry:** refreshed on pull, and shown in Settings.
+- **Errors:** generic messages; metadata-only logs.
+
+Still open: **confidentiality at rest.** The stored copy is readable by anyone with database access.
+
+**Proposed fix (format change, needs approval): encrypt the synced copy in the browser.**
+- **Format:** the browser encrypts the export with AES-GCM before upload, using a key derived from the sync code (PBKDF2-SHA256, high iteration count, random salt). The server stores `{ v: 2, salt, iv, ciphertext }` and can't read it.
+- **Compatibility:**
+  - New clients read both old plaintext blobs and v2 blobs.
+  - The first upload from an updated device replaces a plaintext blob with an encrypted one.
+  - A browser tab still running the old code can't read v2 data. It shows "Something went wrong" and changes nothing, because the import validation rejects it. Reloading the page fixes it.
+- **Strength:** 12-character codes make offline guessing of the key impractical. Old 8-character codes (about 40 bits) are much weaker against someone who obtains the database. So the plan adds a one-tap **"Upgrade to a new secure code"**: create a 12-character code, upload encrypted, delete the old copy, and show the new code to enter on other devices.
+- **Trade-off:** none for users beyond the above. Losing the code still means losing access, as today.
+- **Effort:** browser-only change plus tests; no new dependencies (the browser's built-in Web Crypto).
+
+### F5: headers shipped
+`vercel.json` sends:
+- **Content-Security-Policy:** `script-src 'self'`; styles from this site plus Google Fonts (`'unsafe-inline'` only because of existing `style=""` attributes); fonts from `fonts.gstatic.com`; `connect-src 'self'`; `object-src 'none'`; `frame-ancestors 'none'`.
+- **Other headers:** `Referrer-Policy`, `Permissions-Policy` (microphone for this site only), `X-Content-Type-Options`, `X-Frame-Options`, COOP and HSTS.
+
+**Testing:** the production build was served with exactly these headers and the real API handlers (AI and Upstash simulated). Result: 24 of 24 checks pass. Every screen and onboarding run with zero violations or errors; fonts, AI planning, sync, import/export, undo, forms, theme and the dictation button all work. Injected inline script, cross-site requests and framing are blocked.
+
+**Known side effects:**
+- Vercel's preview-deployment toolbar (`vercel.live`) is blocked by this policy on preview URLs, producing a console message; the site itself works.
+- Real speech recognition (which uses the browser's own speech service, not page requests) can't be exercised in this headless environment. Please try the mic on the preview in Chrome and Safari.
+
+### F6: storage failures
+Every save goes through one `write()`:
+- On failure the old value is kept and a persistent warning appears, with "Export my data".
+- The action stops before showing anything as done.
+- Routines save in one step. Dragged blocks snap back. Imports, restores and sync pulls roll back completely.
+- The free-form journal says "Not saved" and doesn't call the AI.
+- A warning also appears on load if the browser blocks storage.
+- "Reset all data" now also removes the local backup copy and the remembered sync code.
+
+**Tests:** 5 unit tests and 14 browser checks with genuinely full or blocked storage.
 
 ## How to re-run
 - `npm test`: unit suites under four time zones, plus the mocked API tests.

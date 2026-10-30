@@ -86,8 +86,8 @@ function renderTabContent(root) {
         draftText = '';
         activeTab = 'plan';
         renderFreeform(root);
-      } catch {
-        planError = t('planErrorNotice');
+      } catch (err) {
+        planError = t(err?.status === 429 ? 'planRateLimited' : 'planErrorNotice');
         generating = false;
         renderTabContent(root);
       }

@@ -58,7 +58,11 @@ async function realPlan(text) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
   });
-  if (!res.ok) throw new Error('AI planning request failed');
+  if (!res.ok) {
+    const err = new Error('AI planning request failed');
+    err.status = res.status; // 429 = rate limited (the page shows a "try again later" message)
+    throw err;
+  }
   const data = await res.json();
   return { ...data, source: 'ai' };
 }

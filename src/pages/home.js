@@ -2,41 +2,52 @@ import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
 import {
   getProfile, getHabits, addHabit, updateHabit, removeHabit, restoreHabit, toggleHabitForDate, habitStreak, longestHabitStreak,
-  habitsForDate, habitNeedsRelink, habitLinkedEventTitles, habitDuration, DEFAULT_HABIT_DURATION,
+  habitsForDate, habitNeedsRelink, habitLinkedEventTitles, habitDuration, habitDayStates, DEFAULT_HABIT_DURATION,
   weeklyConsistency, consistencyRate, todayStr, dayOfWeek, getEvents, getEventSeriesList,
   previewStackedOccurrences, previewIndependentOccurrences, eventsForDate,
 } from '../db.js';
 import { hasTourBeenSeen, startTour } from '../lib/tour.js';
-import { detectPattern, patternSentence, weekdayKey } from '../lib/patterns.js';
+import { weekdayKey } from '../lib/patterns.js';
 import { navigate } from '../router.js';
-import { consumePendingHabitEdit, consumePendingAddHabit } from '../lib/pendingEdit.js';
+import { consumePendingHabitEdit, consumePendingAddHabit, requestAddRoutine } from '../lib/pendingEdit.js';
 import { showUndoToast } from '../lib/undoToast.js';
 import { addDays, dateForDisplay } from '../lib/dates.js';
+import { homeInsightHtml, wireHomeInsight } from '../lib/homeInsight.js';
 
 let showAddForm = false;
 let dismissedSuggestion = false;
-let dismissedInsight = false;
 let editingHabitId = null;
 let selectedDate = todayStr();
 let lastSeenToday = todayStr(); // lets a page left open past midnight follow the date forward
 let justToggledId = null;
 let addDraft = freshDraft();
 let editDraft = {};
+let formError = '';
 
+const DURATION_CHOICES = [5, 10, 15, 20, 30, 45, 60];
+const GAP_CHOICES = [0, 5, 10, 15, 30];
+
+// when: 'everyday' | 'days' | 'routine'
 function freshDraft() {
-  return { name: '', scheduleType: 'independent', days: [], time: '', duration: DEFAULT_HABIT_DURATION, eventIds: [], eventFilter: '', offset: 0 };
+  return { name: '', duration: DEFAULT_HABIT_DURATION, customDuration: false, when: 'everyday', days: [], time: '', eventIds: [], eventFilter: '', offset: 0, customOffset: false, position: 'after' };
 }
 
 function draftFromHabit(habit) {
+  const stacked = habit.scheduleType === 'stacked';
+  const duration = habitDuration(habit);
+  const offset = habit.offsetMinutes ?? 0;
   return {
     name: habit.name,
-    scheduleType: habit.scheduleType === 'stacked' ? 'stacked' : 'independent',
+    duration,
+    customDuration: !DURATION_CHOICES.includes(duration),
+    when: stacked ? 'routine' : (habit.days && habit.days.length && habit.days.length < 7 ? 'days' : 'everyday'),
     days: habit.days ? [...habit.days] : [],
     time: habit.time || '',
-    duration: habitDuration(habit),
     eventIds: habit.stackEventIds ? [...habit.stackEventIds] : [],
     eventFilter: '',
-    offset: habit.offsetMinutes ?? 0,
+    offset,
+    customOffset: !GAP_CHOICES.includes(offset),
+    position: habit.stackPosition === 'before' ? 'before' : 'after',
   };
 }
 
@@ -47,20 +58,6 @@ function greetingKey() {
   return 'greetEvening';
 }
 
-function greetingIcon() {
-  const h = new Date().getHours();
-  if (h < 12) return icon.sun;
-  if (h < 18) return icon.cloudSun;
-  return icon.moon;
-}
-
-function motivationKey() {
-  const h = new Date().getHours();
-  if (h < 12) return 'motivationMorning';
-  if (h < 18) return 'motivationAfternoon';
-  return 'motivationEvening';
-}
-
 function weekStrip() {
   const lang = getLang();
   const dayLetters = lang === 'ar'
@@ -68,12 +65,12 @@ function weekStrip() {
     : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const today = todayStr();
   const start = addDays(today, -dayOfWeek(today));
-  let html = '<div class="week-strip">';
+  let html = `<div class="week-strip" role="group" aria-label="${escapeAttr(t('chooseDayLabel'))}">`;
   for (let i = 0; i < 7; i++) {
     const dateStr = addDays(start, i);
     const isToday = dateStr === today;
     const isSelected = dateStr === selectedDate;
-    html += `<button class="day-pill ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
+    html += `<button class="day-pill ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" data-date="${dateStr}" aria-pressed="${isSelected}" aria-label="${escapeAttr(fmtLongDate(dateStr))}">
       <div class="d">${dayLetters[i]}</div>
       <div class="n">${Number(dateStr.slice(8, 10))}${isToday ? '<span class="dot"></span>' : ''}</div>
     </button>`;
@@ -114,6 +111,7 @@ export function renderHome(root) {
       editingHabitId = h.id;
       editDraft = draftFromHabit(h);
       showAddForm = false;
+      formError = '';
     }
   }
 
@@ -121,10 +119,16 @@ export function renderHome(root) {
   if (pendingAdd) {
     editingHabitId = null;
     showAddForm = true;
+    formError = '';
     addDraft = freshDraft();
     if (pendingAdd.eventIds.length) {
-      addDraft.scheduleType = 'stacked';
+      addDraft.when = 'routine';
       addDraft.eventIds = pendingAdd.eventIds;
+    }
+    if (pendingAdd.prefill?.name) addDraft.name = String(pendingAdd.prefill.name).slice(0, 200);
+    if (pendingAdd.prefill?.duration) {
+      addDraft.duration = Math.min(240, Math.max(5, Math.round(Number(pendingAdd.prefill.duration)) || DEFAULT_HABIT_DURATION));
+      addDraft.customDuration = !DURATION_CHOICES.includes(addDraft.duration);
     }
   }
 
@@ -134,49 +138,44 @@ export function renderHome(root) {
   const brokenHabits = allHabits.filter(habitNeedsRelink);
   const completedCount = dayHabits.filter((h) => h.history[selectedDate]).length;
   const totalCount = dayHabits.length;
-  const longest = allHabits.length ? Math.max(0, ...allHabits.map(longestHabitStreak)) : 0;
-  const pattern = dismissedInsight ? null : detectPattern();
-  const suggestion = (pattern || dismissedSuggestion) ? null : computeSuggestion();
-  const sectionLabel = selectedDate === todayStr() ? t('todaysHabits') : t('habitsForDateLabel', { day: t(weekdayKey(dayOfWeek(selectedDate))) });
+  const isToday = selectedDate === todayStr();
+  const suggestion = dismissedSuggestion ? null : computeSuggestion();
+  const insight = homeInsightHtml();
+  const name = profile?.firstName ? `, ${escapeHtml(profile.firstName)}` : '';
 
   root.innerHTML = `
-    <div class="page">
-      <div>
-        <div class="row between">
-          <div>
-            <div class="label-sm">${t(greetingKey())}</div>
-            <div class="value-lg">${escapeHtml(profile?.firstName || '')}</div>
-          </div>
-          <div class="icon-circle filled">${greetingIcon()}</div>
-        </div>
-        <div class="screen-subtitle">${new Date().toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-        <div class="screen-subtitle" style="color:var(--accent); margin-top:4px;">${t(motivationKey())}</div>
-      </div>
+    <div class="page home">
+      <header class="home-head">
+        <h1 class="home-greeting font-head">${t(greetingKey())}${name}</h1>
+        <div class="screen-subtitle">${escapeHtml(fmtLongDate(todayStr()))}</div>
+      </header>
 
       ${weekStrip()}
 
-      ${allHabits.length ? progressCardHtml(completedCount, totalCount) : ''}
-      ${allHabits.length ? metricsRowHtml() : ''}
-      ${allHabits.length ? weeklyConsistencyHtml(longest) : ''}
-      ${relinkBannerHtml(brokenHabits)}
-
-      <div>
-        <div class="section-head" style="margin-bottom:8px;">
-          <span class="title">${sectionLabel}</span>
-          <button class="chip accent clickable" id="addHabitToggle">+ ${t('addHabit')}</button>
+      <section class="today-section" aria-labelledby="todayHeading">
+        <div class="today-head">
+          <div>
+            <h2 class="section-title" id="todayHeading">${isToday ? t('todaysHabits') : t('habitsForDateLabel', { day: escapeHtml(fmtLongDate(selectedDate)) })}</h2>
+            ${totalCount ? `<div class="today-count" aria-live="polite">${completedCount === totalCount ? t('allDoneShort') : t('progressCount', { done: completedCount, total: totalCount })}</div>` : ''}
+          </div>
+          <button class="btn primary sm add-habit-btn" id="addHabitToggle" aria-expanded="${showAddForm}">${icon.plus} ${t('addHabit')}</button>
         </div>
+        ${totalCount ? `<div class="today-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${totalCount}" aria-valuenow="${completedCount}" aria-label="${escapeAttr(t('progressCount', { done: completedCount, total: totalCount }))}"><span style="width:${Math.round((completedCount / totalCount) * 100)}%"></span></div>` : ''}
 
+        ${relinkBannerHtml(brokenHabits)}
         ${showAddForm ? habitFormHtml('add', addDraft) : ''}
 
         ${allHabits.length === 0 && !showAddForm ? emptyHabitsHtml() : ''}
         ${allHabits.length > 0 && totalCount === 0 && !showAddForm ? noneScheduledHtml() : ''}
 
-        <div class="col" id="habitList">
+        <div class="habit-list" id="habitList">
           ${dayHabits.map((h) => habitRowHtml(h)).join('')}
         </div>
-      </div>
+      </section>
 
-      ${pattern ? insightCardHtml(pattern) : (suggestion ? suggestionHtml(suggestion) : '')}
+      ${allHabits.length ? weekCardHtml(allHabits) : ''}
+
+      ${insight || (suggestion && !showAddForm ? suggestionHtml(suggestion) : '')}
     </div>
   `;
   justToggledId = null;
@@ -191,47 +190,79 @@ export function renderHome(root) {
   root.querySelector('#addHabitToggle').addEventListener('click', () => {
     showAddForm = !showAddForm;
     editingHabitId = null;
+    formError = '';
     if (showAddForm) addDraft = freshDraft();
     renderHome(root);
+    if (showAddForm) focusField(root, '#addName');
   });
 
   const emptyBtn = root.querySelector('#emptyAddBtn');
-  if (emptyBtn) emptyBtn.addEventListener('click', () => { showAddForm = true; addDraft = freshDraft(); renderHome(root); });
+  if (emptyBtn) emptyBtn.addEventListener('click', () => { showAddForm = true; formError = ''; addDraft = freshDraft(); renderHome(root); focusField(root, '#addName'); });
 
   wireHabitForm(root, 'add', addDraft, () => {
-    const form = root.querySelector('#addForm');
-    const name = form.querySelector('#addName').value.trim();
-    if (!name) return;
-    if (addDraft.scheduleType === 'stacked' && !addDraft.eventIds.length) return;
-    const duration = Number(form.querySelector('#addDuration').value) || DEFAULT_HABIT_DURATION;
-    addHabit({
-      name,
-      duration,
-      scheduleType: addDraft.scheduleType,
-      days: addDraft.scheduleType === 'independent' ? addDraft.days : undefined,
-      time: addDraft.scheduleType === 'independent' ? form.querySelector('#addTime').value : '',
-      stackEventIds: addDraft.scheduleType === 'stacked' ? addDraft.eventIds : undefined,
-      offsetMinutes: addDraft.scheduleType === 'stacked' ? addDraft.offset : undefined,
-    });
+    const values = readForm(root, 'add', addDraft);
+    if (!values) return;
+    addHabit(values);
     showAddForm = false;
     addDraft = freshDraft();
+    formError = '';
     renderHome(root);
   });
 
-  root.querySelectorAll('.habit-toggle').forEach((btn) => {
+  root.querySelectorAll('.habit-check').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id;
       const habit = allHabits.find((h) => h.id === id);
-      const wasDone = !!(habit && habit.history[selectedDate]);
-      toggleHabitForDate(id, selectedDate);
+      if (!habit || selectedDate > todayStr()) return;
+      const wasDone = !!habit.history[selectedDate];
+      const date = selectedDate;
+      toggleHabitForDate(id, date); // throws (and shows the storage warning) if it can't be saved
       justToggledId = wasDone ? null : id;
       renderHome(root);
+      if (!wasDone) {
+        showUndoToast(t('markedDoneToast', { name: habit.name }), t('undoBtn'), () => {
+          const current = getHabits().find((h) => h.id === id);
+          if (current && current.history[date]) toggleHabitForDate(id, date);
+          renderHome(root);
+        });
+      }
     });
   });
 
-  root.querySelectorAll('.habit-remove').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const removed = removeHabit(btn.dataset.id);
+  root.querySelectorAll('.habit-edit-trigger, .relink-trigger').forEach((el) => {
+    el.addEventListener('click', () => {
+      const habit = allHabits.find((h) => h.id === el.dataset.id);
+      if (!habit) return;
+      showAddForm = false;
+      formError = '';
+      editingHabitId = habit.id;
+      editDraft = draftFromHabit(habit);
+      renderHome(root);
+      focusField(root, '#editName');
+    });
+  });
+
+  const editForm = root.querySelector('#editForm');
+  if (editForm) {
+    wireHabitForm(root, 'edit', editDraft, () => {
+      const values = readForm(root, 'edit', editDraft);
+      if (!values) return;
+      updateHabit(editingHabitId, { ...values, needsRelink: false });
+      editingHabitId = null;
+      editDraft = {};
+      formError = '';
+      renderHome(root);
+    });
+    editForm.querySelector('#cancelEditBtn').addEventListener('click', () => {
+      editingHabitId = null;
+      editDraft = {};
+      formError = '';
+      renderHome(root);
+    });
+    editForm.querySelector('#deleteHabitBtn').addEventListener('click', () => {
+      const removed = removeHabit(editingHabitId);
+      editingHabitId = null;
+      editDraft = {};
       renderHome(root);
       if (removed) {
         showUndoToast(t('habitRemovedToast'), t('undoBtn'), () => {
@@ -240,71 +271,82 @@ export function renderHome(root) {
         });
       }
     });
-  });
-
-  root.querySelectorAll('.habit-edit-trigger, .habit-edit-btn, .relink-trigger').forEach((el) => {
-    el.addEventListener('click', () => {
-      const habit = allHabits.find((h) => h.id === el.dataset.id);
-      if (!habit) return;
-      showAddForm = false;
-      editingHabitId = habit.id;
-      editDraft = draftFromHabit(habit);
-      renderHome(root);
-    });
-  });
-
-  const editForm = root.querySelector('#editForm');
-  if (editForm) {
-    wireHabitForm(root, 'edit', editDraft, () => {
-      const name = editForm.querySelector('#editName').value.trim();
-      if (!name) return;
-      if (editDraft.scheduleType === 'stacked' && !editDraft.eventIds.length) return;
-      const duration = Number(editForm.querySelector('#editDuration').value) || DEFAULT_HABIT_DURATION;
-      updateHabit(editingHabitId, {
-        name,
-        duration,
-        scheduleType: editDraft.scheduleType,
-        days: editDraft.scheduleType === 'independent' ? (editDraft.days.length ? editDraft.days : undefined) : undefined,
-        time: editDraft.scheduleType === 'independent' ? editForm.querySelector('#editTime').value : '',
-        stackEventIds: editDraft.scheduleType === 'stacked' ? editDraft.eventIds : undefined,
-        offsetMinutes: editDraft.scheduleType === 'stacked' ? editDraft.offset : undefined,
-        needsRelink: false,
-      });
-      editingHabitId = null;
-      editDraft = {};
-      renderHome(root);
-    });
-    editForm.querySelector('#cancelEditBtn').addEventListener('click', () => {
-      editingHabitId = null;
-      editDraft = {};
-      renderHome(root);
-    });
   }
 
   const addSuggestBtn = root.querySelector('#addSuggestBtn');
   if (addSuggestBtn) {
     addSuggestBtn.addEventListener('click', () => {
-      addHabit({ name: t('habitNamePlaceholder'), scheduleType: 'stacked', stackEventIds: [suggestion.eventId], offsetMinutes: 0 });
+      // Opens the habit form already stacked after that event, so the user names it themselves.
+      showAddForm = true;
+      editingHabitId = null;
+      formError = '';
+      addDraft = { ...freshDraft(), when: 'routine', eventIds: [suggestion.eventId] };
       dismissedSuggestion = true;
       renderHome(root);
+      focusField(root, '#addName');
     });
   }
   const notNowBtn = root.querySelector('#notNowBtn');
   if (notNowBtn) notNowBtn.addEventListener('click', () => { dismissedSuggestion = true; renderHome(root); });
 
-  const viewInsightBtn = root.querySelector('#viewInsightBtn');
-  if (viewInsightBtn) viewInsightBtn.addEventListener('click', () => navigate('/insight'));
-  const dismissInsightBtn = root.querySelector('#dismissInsightBtn');
-  if (dismissInsightBtn) dismissInsightBtn.addEventListener('click', () => { dismissedInsight = true; renderHome(root); });
+  wireHomeInsight(root, () => renderHome(root));
 
   if (!hasTourBeenSeen()) {
     requestAnimationFrame(() => startTour());
   }
 }
 
+function focusField(root, selector) {
+  requestAnimationFrame(() => {
+    const el = root.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  });
+}
+
+// Validates the form and returns the values to save, or null (with formError set and shown).
+function readForm(root, prefix, draft) {
+  const form = root.querySelector(`#${prefix}Form`);
+  captureFields(form, prefix, draft);
+  const name = draft.name.trim();
+  let error = '';
+  if (!name) error = t('habitErrName');
+  else if (draft.when === 'days' && !draft.days.length) error = t('habitErrDays');
+  else if (draft.when === 'routine' && !draft.eventIds.length) error = t('habitErrRoutine');
+  if (error) {
+    formError = error;
+    renderHome(root);
+    focusField(root, `#${prefix}Form .form-error`);
+    return null;
+  }
+  const stacked = draft.when === 'routine';
+  return {
+    name: name.slice(0, 200),
+    duration: Math.min(240, Math.max(1, draft.duration || DEFAULT_HABIT_DURATION)),
+    scheduleType: stacked ? 'stacked' : 'independent',
+    days: draft.when === 'days' ? [...draft.days].sort((a, b) => a - b) : undefined,
+    time: stacked ? '' : draft.time,
+    stackEventIds: stacked ? draft.eventIds : undefined,
+    offsetMinutes: stacked ? Math.min(240, Math.max(0, draft.offset || 0)) : undefined,
+    stackPosition: stacked && draft.position === 'before' ? 'before' : undefined,
+  };
+}
+
+function captureFields(form, prefix, draft) {
+  if (!form) return;
+  const nameEl = form.querySelector(`#${prefix}Name`);
+  const timeEl = form.querySelector(`#${prefix}Time`);
+  const durationEl = form.querySelector(`#${prefix}DurationCustom`);
+  const offsetEl = form.querySelector(`#${prefix}OffsetCustom`);
+  if (nameEl) draft.name = nameEl.value;
+  if (timeEl) draft.time = timeEl.value;
+  if (durationEl && durationEl.value) draft.duration = Math.round(Number(durationEl.value)) || draft.duration;
+  if (offsetEl && offsetEl.value !== '') draft.offset = Math.max(0, Math.round(Number(offsetEl.value)) || 0);
+}
+
 // Re-renders while keeping focus (and cursor position) on whatever field triggered it — needed for
-// the event-search box, which must re-render on every keystroke to live-filter, but would otherwise
-// lose focus each time since the whole page is rebuilt from an HTML string.
+// the routine search box, which re-renders on every keystroke to live-filter.
 function reRenderPreservingFocus(root) {
   const active = document.activeElement;
   const id = active && root.contains(active) ? active.id : null;
@@ -321,68 +363,84 @@ function reRenderPreservingFocus(root) {
   }
 }
 
-// Shared wiring for both the add-habit and edit-habit forms: captures text-field values before
-// any re-render triggered by a sibling control (weekday chip, schedule toggle, select, checkbox)
-// so typed text isn't lost, exactly the same fix applied to the calendar event form.
+// Shared wiring for the add and edit forms. Text fields are captured before any re-render
+// triggered by another control, so typed text is never lost.
 function wireHabitForm(root, prefix, draft, onSubmit) {
   const form = root.querySelector(`#${prefix}Form`);
   if (!form) return;
+  const rerender = () => { captureFields(form, prefix, draft); formError = ''; renderHome(root); };
 
-  const capture = () => {
-    const nameEl = form.querySelector(`#${prefix}Name`);
-    const timeEl = form.querySelector(`#${prefix}Time`);
-    const durationEl = form.querySelector(`#${prefix}Duration`);
-    if (nameEl) draft.name = nameEl.value;
-    if (timeEl) draft.time = timeEl.value;
-    if (durationEl) draft.duration = Number(durationEl.value) || draft.duration;
-  };
-
-  form.querySelectorAll(`input[name="${prefix}ScheduleType"]`).forEach((r) => {
-    r.addEventListener('change', () => { capture(); draft.scheduleType = r.value; renderHome(root); });
-  });
-
-  form.querySelectorAll('.weekday-chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
-      capture();
-      const day = Number(chip.dataset.day);
-      draft.days = draft.days.includes(day) ? draft.days.filter((d) => d !== day) : [...draft.days, day];
-      renderHome(root);
+  form.querySelectorAll('[data-duration]').forEach((b) => b.addEventListener('click', () => {
+    captureFields(form, prefix, draft);
+    if (b.dataset.duration === 'other') { draft.customDuration = true; } else { draft.customDuration = false; draft.duration = Number(b.dataset.duration); }
+    formError = '';
+    renderHome(root);
+    if (draft.customDuration) focusField(root, `#${prefix}DurationCustom`);
+  }));
+  form.querySelectorAll('[data-when]').forEach((b) => b.addEventListener('click', () => {
+    captureFields(form, prefix, draft);
+    draft.when = b.dataset.when;
+    rerender();
+  }));
+  form.querySelectorAll('.weekday-chip').forEach((chip) => chip.addEventListener('click', () => {
+    captureFields(form, prefix, draft);
+    const day = Number(chip.dataset.day);
+    draft.days = draft.days.includes(day) ? draft.days.filter((d) => d !== day) : [...draft.days, day];
+    rerender();
+  }));
+  form.querySelectorAll('[data-position]').forEach((b) => b.addEventListener('click', () => {
+    captureFields(form, prefix, draft);
+    draft.position = b.dataset.position;
+    rerender();
+  }));
+  form.querySelectorAll('[data-gap]').forEach((b) => b.addEventListener('click', () => {
+    captureFields(form, prefix, draft);
+    if (b.dataset.gap === 'other') { draft.customOffset = true; } else { draft.customOffset = false; draft.offset = Number(b.dataset.gap); }
+    formError = '';
+    renderHome(root);
+    if (draft.customOffset) focusField(root, `#${prefix}OffsetCustom`);
+  }));
+  // Typed values only refresh the preview box (never the whole form), so a blur caused by tapping
+  // Save can't rebuild the form under the tap.
+  ['DurationCustom', 'OffsetCustom', 'Time'].forEach((suffix) => {
+    const el = form.querySelector(`#${prefix}${suffix}`);
+    if (el) el.addEventListener('input', () => {
+      captureFields(form, prefix, draft);
+      const box = form.querySelector('.preview-slot');
+      if (box) box.innerHTML = previewForDraft(draft);
     });
   });
-
-  const offsetSelect = form.querySelector('.stack-offset-select');
-  if (offsetSelect) {
-    offsetSelect.addEventListener('change', () => { capture(); draft.offset = Number(offsetSelect.value); renderHome(root); });
-  }
 
   const searchInput = form.querySelector('.event-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', () => {
-      capture();
+      captureFields(form, prefix, draft);
       draft.eventFilter = searchInput.value;
       reRenderPreservingFocus(root);
     });
   }
-
   form.querySelectorAll('.event-select').forEach((cb) => {
     cb.addEventListener('change', () => {
-      capture();
+      captureFields(form, prefix, draft);
       const id = cb.dataset.id;
       draft.eventIds = cb.checked ? [...draft.eventIds, id] : draft.eventIds.filter((x) => x !== id);
-      renderHome(root);
+      rerender();
     });
   });
-
   form.querySelectorAll('.series-select-all').forEach((cb) => {
     cb.addEventListener('change', () => {
-      capture();
+      captureFields(form, prefix, draft);
       const series = getEventSeriesList().find((s) => s.seriesId === cb.dataset.series);
       const memberIds = series ? series.members.map((m) => m.id) : [];
       draft.eventIds = cb.checked
         ? Array.from(new Set([...draft.eventIds, ...memberIds]))
         : draft.eventIds.filter((id) => !memberIds.includes(id));
-      renderHome(root);
+      rerender();
     });
+  });
+  form.querySelector('#goAddRoutineBtn')?.addEventListener('click', () => {
+    requestAddRoutine();
+    navigate('/calendar');
   });
 
   form.addEventListener('submit', (e) => {
@@ -391,85 +449,56 @@ function wireHabitForm(root, prefix, draft, onSubmit) {
   });
 }
 
-function progressCardHtml(completed, total) {
-  const pct = total ? Math.round((completed / total) * 100) : 0;
-  const allDone = total > 0 && completed === total;
-  let big;
-  let sub;
-  if (total === 0) {
-    big = t('freeDayTitle');
-    sub = t('freeDayBody');
-  } else {
-    big = t('progressCount', { done: completed, total });
-    sub = allDone ? t('allDoneBody') : t('progressSub');
+// ---------- This week (one card instead of several overlapping charts) ----------
+function weekCardHtml(allHabits) {
+  const week = consistencyRate(7);
+  const month = consistencyRate(30);
+  const longest = Math.max(0, ...allHabits.map(longestHabitStreak));
+  if (week.rate === null) {
+    return `
+      <section class="card week-card" aria-labelledby="weekHeading">
+        <h2 class="label-sm" id="weekHeading">${t('thisWeekTitle')}</h2>
+        <p class="week-empty">${t('thisWeekEmpty')}</p>
+      </section>
+    `;
   }
-  return `
-    <div class="card dash-card">
-      <div class="progress-ring" style="--pct:${total ? pct : 0}"><span class="ring-label">${total ? pct + '%' : '—'}</span></div>
-      <div class="dash-progress-text grow">
-        <div class="big">${big}</div>
-        <div class="sub">${sub}</div>
-      </div>
-    </div>
-  `;
-}
-
-function metricsRowHtml() {
-  return `
-    <div class="metric-row-2">
-      ${metricCardSmHtml('consistencyLabel', 'teal', consistencyRate(7))}
-      ${metricCardSmHtml('momentumLabel', 'amber', consistencyRate(30))}
-    </div>
-  `;
-}
-
-function metricCardSmHtml(labelKey, colorClass, metric) {
-  const pct = metric.rate === null ? 0 : Math.round(metric.rate * 100);
-  return `
-    <div class="metric-card-sm">
-      <div class="metric-ring-sm ${colorClass}" style="--pct:${pct}"><span class="val">${metric.rate === null ? '—' : pct + '%'}</span></div>
-      <div>
-        <div class="label">${t(labelKey)}</div>
-        <div class="sub">${metric.rate === null ? t('notEnoughData') : `${metric.totalCompleted}/${metric.totalScheduled}`}</div>
-      </div>
-    </div>
-  `;
-}
-
-function weeklyConsistencyHtml(longest) {
   const data = weeklyConsistency(7);
-  const lang = getLang();
-  const letters = lang === 'ar' ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const letters = getLang() === 'ar' ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const bars = data.map((d) => {
     const isToday = d.date === todayStr();
-    const dow = dayOfWeek(d.date);
-    const barHtml = d.rate === null
-      ? `<div class="wc-bar free"></div>`
+    const label = d.rate === null ? t('nothingScheduled') : t('progressCount', { done: d.completedCount, total: d.scheduledCount });
+    const bar = d.rate === null
+      ? '<div class="wc-bar free"></div>'
       : `<div class="wc-bar" style="height:${Math.max(Math.round(d.rate * 100), d.completedCount > 0 ? 10 : 4)}%"></div>`;
-    return `<div class="wc-col ${isToday ? 'today' : ''}" title="${escapeAttr(d.date)}"><div class="wc-bar-track">${barHtml}</div><div class="wc-label">${letters[dow]}</div></div>`;
+    return `<div class="wc-col ${isToday ? 'today' : ''}" title="${escapeAttr(fmtShortDate(d.date) + ': ' + label)}"><div class="wc-bar-track">${bar}</div><div class="wc-label">${letters[dayOfWeek(d.date)]}</div></div>`;
   }).join('');
   return `
-    <div class="card col">
-      <div class="row between">
-        <span class="label-sm">${t('dailyBreakdownTitle')}</span>
-        ${longest >= 2 ? `<span class="label-sm">🔥 ${t('longestStreakLabel', { n: longest })}</span>` : ''}
+    <section class="card week-card" aria-labelledby="weekHeading">
+      <h2 class="label-sm" id="weekHeading">${t('thisWeekTitle')}</h2>
+      <div class="week-main">
+        <div class="week-pct">${Math.round(week.rate * 100)}<span>%</span></div>
+        <div class="week-desc">${t('weekDoneOfScheduled', { done: week.totalCompleted, total: week.totalScheduled })}</div>
       </div>
-      <div class="week-consistency">${bars}</div>
-    </div>
+      <div class="week-consistency" aria-hidden="true">${bars}</div>
+      <div class="week-foot">
+        ${month.rate !== null ? `<span>${t('last30Days')}: <strong>${Math.round(month.rate * 100)}%</strong></span>` : ''}
+        ${longest >= 2 ? `<span>${t('bestStreakLabel')}: <strong>${longest}</strong></span>` : ''}
+      </div>
+    </section>
   `;
 }
 
 function relinkBannerHtml(brokenHabits) {
   if (!brokenHabits.length) return '';
   return `
-    <div class="card dashed" style="border-color:var(--danger); background:color-mix(in srgb, var(--danger) 12%, transparent);">
+    <div class="card dashed relink-card">
       <div class="row" style="gap:7px; margin-bottom:6px;">
         ${icon.warnTriangle}
-        <span style="font-size:11.5px; font-weight:700; color:var(--danger);">${t('needsRelinkTitle')}</span>
+        <span class="relink-title">${t('needsRelinkTitle')}</span>
       </div>
       <div class="col" style="gap:6px;">
         ${brokenHabits.map((h) => `
-          <div class="row between" style="font-size:11.5px;">
+          <div class="row between" style="font-size:13px;">
             <span>${escapeHtml(h.name)}</span>
             <button class="chip solid clickable relink-trigger" data-id="${h.id}">${t('relinkBtn')}</button>
           </div>
@@ -480,11 +509,11 @@ function relinkBannerHtml(brokenHabits) {
 }
 
 function emptyHabitsHtml() {
+  const hasRoutines = getEvents().some((e) => e.type === 'weekly');
   return `
     <div class="empty-state card">
-      <div class="icon-circle">${icon.circle}</div>
       <div class="title">${t('noHabitsYetTitle')}</div>
-      <div class="body">${t('noHabitsYetBody')}</div>
+      <div class="body">${t(hasRoutines ? 'noHabitsYetBodyRoutines' : 'noHabitsYetBody')}</div>
       <button class="btn primary" id="emptyAddBtn" style="margin-top:12px;">${t('addFirstHabit')}</button>
     </div>
   `;
@@ -493,99 +522,110 @@ function emptyHabitsHtml() {
 function noneScheduledHtml() {
   return `
     <div class="empty-state card compact">
-      <div class="icon-circle">${icon.circle}</div>
       <div class="title">${t('noneScheduledTodayTitle')}</div>
       <div class="body">${t('noneScheduledTodayBody')}</div>
     </div>
   `;
 }
 
-const DURATION_PRESETS = [10, 15, 20, 30, 45, 60, 90];
-
+// ---------- Add / edit habit: three short questions ----------
 function habitFormHtml(prefix, draft) {
-  const titleKey = prefix === 'add' ? 'newHabit' : 'editHabit';
-  const submitKey = prefix === 'add' ? 'saveHabit' : 'save';
+  const isEdit = prefix === 'edit';
+  const durationPicked = (n) => !draft.customDuration && draft.duration === n;
   return `
-    <form id="${prefix}Form" class="card col" style="margin-bottom:10px;">
-      <div class="label-sm">${t(titleKey)}</div>
-      <input class="field" id="${prefix}Name" placeholder="${t('habitNamePlaceholder')}" aria-label="${t('habitNamePlaceholder')}" value="${escapeAttr(draft.name)}" required />
+    <form id="${prefix}Form" class="card habit-form" novalidate aria-labelledby="${prefix}FormTitle">
+      <h3 class="form-title" id="${prefix}FormTitle">${t(isEdit ? 'editHabit' : 'newHabit')}</h3>
 
-      <label class="label-sm">${t('durationLabel')}</label>
-      <input class="field" type="number" min="5" max="240" step="5" id="${prefix}Duration" aria-label="${t('durationLabel')}" value="${draft.duration}" list="${prefix}DurationPresets" />
-      <datalist id="${prefix}DurationPresets">${DURATION_PRESETS.map((n) => `<option value="${n}"></option>`).join('')}</datalist>
-      <div class="label-sm">${t('durationHint')}</div>
-
-      <div class="schedule-toggle">
-        <label class="${draft.scheduleType === 'independent' ? 'checked' : ''}">
-          <input type="radio" name="${prefix}ScheduleType" value="independent" ${draft.scheduleType === 'independent' ? 'checked' : ''}/>
-          ${t('scheduleIndependent')}
-        </label>
-        <label class="${draft.scheduleType === 'stacked' ? 'checked' : ''}">
-          <input type="radio" name="${prefix}ScheduleType" value="stacked" ${draft.scheduleType === 'stacked' ? 'checked' : ''}/>
-          ${t('scheduleStacked')}
-        </label>
+      <div class="q">
+        <label class="q-label" for="${prefix}Name"><span class="q-num">1</span>${t('habitQWhat')}</label>
+        <input class="field" id="${prefix}Name" placeholder="${t('habitNameExample')}" value="${escapeAttr(draft.name)}" maxlength="200" autocomplete="off" required />
       </div>
 
-      ${draft.scheduleType === 'independent' ? independentFieldsHtml(prefix, draft) : stackedFieldsHtml(prefix, draft)}
-
-      <div class="row" style="gap:8px;">
-        ${prefix === 'edit' ? `<button class="btn secondary grow" type="button" id="cancelEditBtn">${t('cancel')}</button>` : ''}
-        <button class="btn primary grow" type="submit">${t(submitKey)}</button>
+      <div class="q" role="group" aria-labelledby="${prefix}QLong">
+        <div class="q-label" id="${prefix}QLong"><span class="q-num">2</span>${t('habitQHowLong')}</div>
+        <div class="choice-row">
+          ${DURATION_CHOICES.map((n) => `<button type="button" class="choice ${durationPicked(n) ? 'on' : ''}" data-duration="${n}" aria-pressed="${durationPicked(n)}">${t('minutesShort', { n })}</button>`).join('')}
+          <button type="button" class="choice ${draft.customDuration ? 'on' : ''}" data-duration="other" aria-pressed="${draft.customDuration}">${t('otherChoice')}</button>
+        </div>
+        ${draft.customDuration ? `<div class="inline-field"><input class="field" type="number" min="1" max="240" id="${prefix}DurationCustom" value="${draft.duration}" aria-label="${escapeAttr(t('durationMinutesLabel'))}" /><span>${t('minutesWord')}</span></div>` : ''}
       </div>
+
+      <div class="q" role="group" aria-labelledby="${prefix}QWhen">
+        <div class="q-label" id="${prefix}QWhen"><span class="q-num">3</span>${t('habitQWhen')}</div>
+        <div class="seg" role="radiogroup">
+          ${[['everyday', 'whenEveryDay'], ['days', 'whenSpecificDays'], ['routine', 'whenAroundRoutine']].map(([v, k]) => `
+            <button type="button" role="radio" class="seg-btn ${draft.when === v ? 'on' : ''}" data-when="${v}" aria-checked="${draft.when === v}">${t(k)}</button>
+          `).join('')}
+        </div>
+        ${draft.when === 'routine' ? routineFieldsHtml(prefix, draft) : independentFieldsHtml(prefix, draft)}
+      </div>
+
+      ${formError ? `<div class="form-error" role="alert" tabindex="-1">${escapeHtml(formError)}</div>` : ''}
+
+      <div class="form-actions">
+        ${isEdit ? `<button class="btn secondary grow" type="button" id="cancelEditBtn">${t('cancel')}</button>` : ''}
+        <button class="btn primary grow" type="submit">${t(isEdit ? 'save' : 'saveHabit')}</button>
+      </div>
+      ${isEdit ? `<button class="btn ghost danger-text" type="button" id="deleteHabitBtn">${icon.trash} ${t('deleteHabitBtn')}</button><p class="form-note">${t('editKeepsHistory')}</p>` : ''}
     </form>
   `;
 }
 
 function independentFieldsHtml(prefix, draft) {
   return `
-    <div>
-      <label class="label-sm" style="display:block; margin-bottom:6px;">${t('independentDaysLabel')}</label>
-      <div class="wrap-gap">
+    ${draft.when === 'days' ? `
+      <div class="wrap-gap" role="group" aria-label="${escapeAttr(t('independentDaysLabel'))}">
         ${[0, 1, 2, 3, 4, 5, 6].map((d) => `
-          <button type="button" class="chip clickable weekday-chip ${draft.days.includes(d) ? 'solid' : ''}" data-day="${d}">${t(weekdayKey(d))}</button>
+          <button type="button" class="chip clickable weekday-chip ${draft.days.includes(d) ? 'solid' : ''}" data-day="${d}" aria-pressed="${draft.days.includes(d)}">${t(weekdayKey(d))}</button>
         `).join('')}
-      </div>
-      <div class="label-sm" style="margin-top:4px;">${draft.days.length ? '' : t('everyDayHint')}</div>
-    </div>
-    <label class="label-sm">${t('habitTimeLabel')}</label>
-    <input class="field" type="time" id="${prefix}Time" aria-label="${t('habitTimeLabel')}" value="${escapeAttr(draft.time)}" />
-    <div class="label-sm">${t('habitTimeHint')}</div>
-    ${draft.time ? previewIndepHtml(draft.days, draft.time, draft.duration) : ''}
+      </div>` : ''}
+    <label class="label-sm" for="${prefix}Time">${t('habitTimeLabel')}</label>
+    <input class="field" type="time" id="${prefix}Time" value="${escapeAttr(draft.time)}" />
+    <div class="form-note">${t('habitTimeHint')}</div>
+    <div class="preview-slot">${previewForDraft(draft)}</div>
   `;
 }
 
-function stackedFieldsHtml(prefix, draft) {
+function routineFieldsHtml(prefix, draft) {
   const allEvents = getEvents();
   if (!allEvents.length) {
     return `
       <div class="empty-state card compact">
-        <div class="icon-circle">${icon.calendar}</div>
         <div class="title">${t('noEventsToStackTitle')}</div>
         <div class="body">${t('noEventsToStackBody')}</div>
+        <button type="button" class="btn secondary" id="goAddRoutineBtn" style="margin-top:10px;">${icon.plus} ${t('addRoutineBtn')}</button>
       </div>
     `;
   }
   const seriesList = getEventSeriesList();
   const filter = (draft.eventFilter || '').trim().toLowerCase();
   const filteredSeries = filter ? seriesList.filter((s) => s.title.toLowerCase().includes(filter)) : seriesList;
-
+  const gapPicked = (n) => !draft.customOffset && draft.offset === n;
   return `
-    <label class="label-sm">${t('selectEventsLabel')}</label>
-    <div class="row" style="gap:6px; align-items:center; background:var(--field-bg, var(--card-strong)); border-radius:11px; padding:0 10px;">
-      <span style="display:flex; color:var(--text-faint);">${icon.search}</span>
-      <input class="field grow event-search-input" id="${prefix}EventSearch" placeholder="${t('searchEventsPlaceholder')}" aria-label="${t('searchEventsPlaceholder')}" value="${escapeAttr(draft.eventFilter || '')}" style="border:none; background:none; padding:9px 0;" autocomplete="off" />
-    </div>
+    <div class="label-sm">${t('pickRoutinesLabel')}</div>
+    ${seriesList.length > 6 ? `
+      <div class="search-field">
+        <span aria-hidden="true">${icon.search}</span>
+        <input class="field grow event-search-input" id="${prefix}EventSearch" placeholder="${t('searchEventsPlaceholder')}" aria-label="${t('searchEventsPlaceholder')}" value="${escapeAttr(draft.eventFilter || '')}" autocomplete="off" />
+      </div>` : ''}
     <div class="event-picker-list">
       ${filteredSeries.length ? filteredSeries.map((s) => seriesPickerGroup(s, draft)).join('') : `<div class="label-sm" style="padding:8px 2px;">${t('noMatchingEvents')}</div>`}
     </div>
-    ${draft.eventIds.length ? selectedSummaryHtml(draft, allEvents) : `<div class="label-sm">${t('noEventsSelectedHint')}</div>`}
-    <label class="label-sm">${t('stackOffsetLabel')}</label>
-    <select class="field stack-offset-select" id="${prefix}Offset" aria-label="${t('stackOffsetLabel')}">
-      <option value="0" ${draft.offset === 0 ? 'selected' : ''}>${t('offsetNow')}</option>
-      <option value="10" ${draft.offset === 10 ? 'selected' : ''}>${t('offset10')}</option>
-      <option value="30" ${draft.offset === 30 ? 'selected' : ''}>${t('offset30')}</option>
-    </select>
-    ${draft.eventIds.length ? previewHtml(draft.eventIds, draft.offset, draft.duration) : ''}
+
+    <div class="label-sm">${t('positionLabel')}</div>
+    <div class="seg small" role="radiogroup" aria-label="${escapeAttr(t('positionLabel'))}">
+      ${[['before', 'positionBefore'], ['after', 'positionAfter']].map(([v, k]) => `
+        <button type="button" role="radio" class="seg-btn ${draft.position === v ? 'on' : ''}" data-position="${v}" aria-checked="${draft.position === v}">${t(k)}</button>
+      `).join('')}
+    </div>
+
+    <div class="label-sm">${t(draft.position === 'before' ? 'gapBeforeLabel' : 'gapAfterLabel')}</div>
+    <div class="choice-row">
+      ${GAP_CHOICES.map((n) => `<button type="button" class="choice ${gapPicked(n) ? 'on' : ''}" data-gap="${n}" aria-pressed="${gapPicked(n)}">${n === 0 ? t('gapNone') : t('minutesShort', { n })}</button>`).join('')}
+      <button type="button" class="choice ${draft.customOffset ? 'on' : ''}" data-gap="other" aria-pressed="${draft.customOffset}">${t('otherChoice')}</button>
+    </div>
+    ${draft.customOffset ? `<div class="inline-field"><input class="field" type="number" min="0" max="240" id="${prefix}OffsetCustom" value="${draft.offset}" aria-label="${escapeAttr(t('gapMinutesLabel'))}" /><span>${t('minutesWord')}</span></div>` : ''}
+    <div class="preview-slot">${previewForDraft(draft)}</div>
   `;
 }
 
@@ -601,17 +641,18 @@ function seriesPickerGroup(series, draft) {
           <span class="ep-title">${escapeHtml(series.title)}</span>
           <span class="ep-sub">${escapeHtml(seriesSummary(series))}</span>
         </span>
-        ${someSelected ? `<span class="chip" style="font-size:11px;">${t('partialLabel')}</span>` : ''}
+        ${someSelected ? `<span class="chip">${t('partialLabel')}</span>` : ''}
       </label>
       ${series.members.length > 1 ? `
-        <div class="event-picker-members">
+        <details class="event-picker-members" ${someSelected ? 'open' : ''}>
+          <summary>${t('chooseSpecificDays')}</summary>
           ${series.members.map((m) => `
             <label class="event-picker-row member">
               <input type="checkbox" class="event-select" data-id="${m.id}" ${draft.eventIds.includes(m.id) ? 'checked' : ''} />
               <span>${memberLabel(m)}</span>
             </label>
           `).join('')}
-        </div>
+        </details>
       ` : ''}
     </div>
   `;
@@ -620,16 +661,6 @@ function seriesPickerGroup(series, draft) {
 function memberLabel(m) {
   if (m.type === 'once') return `<span dir="ltr">${m.date}</span> · <span dir="ltr">${m.start}–${m.end}</span>`;
   return `${t(weekdayKey(m.dayOfWeek))} · <span dir="ltr">${m.start}–${m.end}</span>`;
-}
-
-function selectedSummaryHtml(draft, allEvents) {
-  const selected = draft.eventIds.map((id) => allEvents.find((e) => e.id === id)).filter(Boolean);
-  if (!selected.length) return '';
-  return `
-    <div class="wrap-gap">
-      ${selected.map((e) => `<span class="chip accent">${escapeHtml(e.title)} · ${e.type === 'once' ? escapeHtml(e.date) : t(weekdayKey(e.dayOfWeek))}</span>`).join('')}
-    </div>
-  `;
 }
 
 function seriesSummary(series) {
@@ -641,13 +672,18 @@ function seriesSummary(series) {
   return `${days} · ${first.start}–${first.end}`;
 }
 
-function previewHtml(eventIds, offset, duration) {
-  const occ = previewStackedOccurrences(eventIds, offset, duration, 4);
-  if (!occ.length) return `<div class="label-sm">${t('noUpcomingPreview')}</div>`;
+function previewForDraft(draft) {
+  if (draft.when === 'routine') return draft.eventIds.length ? previewHtml(draft.eventIds, draft.offset, draft.duration, draft.position) : '';
+  return draft.time ? previewIndepHtml(draft.when === 'days' ? draft.days : [], draft.time, draft.duration) : '';
+}
+
+function previewHtml(eventIds, offset, duration, position) {
+  const occ = previewStackedOccurrences(eventIds, offset, duration, 4, todayStr(), position);
+  if (!occ.length) return `<div class="form-note">${t('noUpcomingPreview')}</div>`;
   return `
     <div class="occurrence-preview">
       <div class="label-sm">${t('upcomingPreviewLabel')}</div>
-      ${occ.map((o) => `<div class="occurrence-chip"><span class="d">${fmtPreviewDate(o.date)}</span><span dir="ltr">${o.start}–${o.end}</span></div>`).join('')}
+      ${occ.map((o) => `<div class="occurrence-chip"><span class="d">${fmtShortDate(o.date)}</span><span dir="ltr">${o.start}–${o.end}</span></div>`).join('')}
     </div>
   `;
 }
@@ -658,73 +694,80 @@ function previewIndepHtml(days, time, duration) {
   return `
     <div class="occurrence-preview">
       <div class="label-sm">${t('upcomingPreviewLabel')}</div>
-      ${occ.map((o) => `<div class="occurrence-chip"><span class="d">${fmtPreviewDate(o.date)}</span><span dir="ltr">${o.start}${o.end ? '–' + o.end : ''}</span></div>`).join('')}
+      ${occ.map((o) => `<div class="occurrence-chip"><span class="d">${fmtShortDate(o.date)}</span><span dir="ltr">${o.start}${o.end ? '–' + o.end : ''}</span></div>`).join('')}
     </div>
   `;
 }
 
-function fmtPreviewDate(dateStr) {
+function fmtShortDate(dateStr) {
   return dateForDisplay(dateStr).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function fmtLongDate(dateStr) {
+  return dateForDisplay(dateStr).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+// ---------- Habit row: big checkbox, details, streak and the last 7 days ----------
 function habitRowHtml(habit) {
   if (habit.id === editingHabitId) return habitFormHtml('edit', editDraft);
-  const doneToday = !!habit.history[selectedDate];
+  const done = !!habit.history[selectedDate];
+  const future = selectedDate > todayStr();
   const streak = habitStreak(habit);
   const needsRelink = habitNeedsRelink(habit);
-  const subParts = [];
-  if (habit.resolvedTime) subParts.push(`<span dir="ltr">${habit.resolvedTime}${habit.resolvedEndTime ? '–' + habit.resolvedEndTime : ''}</span>`);
+  const days = habitDayStates(habit, 7);
+  const scheduled = days.filter((d) => d.state === 'done' || d.state === 'missed').length;
+  const doneCount = days.filter((d) => d.state === 'done').length;
+
+  const meta = [];
+  if (habit.resolvedTime) meta.push(`<span dir="ltr">${habit.resolvedTime}${habit.resolvedEndTime ? '–' + habit.resolvedEndTime : ''}</span>`);
   if (habit.scheduleType === 'stacked') {
     const linkedTitles = habitLinkedEventTitles(habit);
-    if (linkedTitles.length) subParts.push(`${t('stackedAfter')}: ${escapeHtml(linkedTitles.join(', '))}`);
+    if (linkedTitles.length) meta.push(`${t(habit.stackPosition === 'before' ? 'stackedBefore' : 'stackedAfter')} ${escapeHtml(linkedTitles.join(', '))}`);
   } else if (habit.days && habit.days.length && habit.days.length < 7) {
-    subParts.push(habit.days.slice().sort((a, b) => a - b).map((d) => t(weekdayKey(d))).join(', '));
+    meta.push(habit.days.slice().sort((a, b) => a - b).map((d) => t(weekdayKey(d))).join(', '));
+  } else {
+    meta.push(t('everyDayLabel'));
   }
+
+  let streakText = '';
+  if (streak >= 2) streakText = t('streakInARow', { n: streak });
+  else if (scheduled >= 2 && doneCount > 0) streakText = t('recentOfLast', { done: doneCount, total: scheduled });
+
+  const dayLetters = getLang() === 'ar' ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const stateLabel = { done: t('dayDone'), missed: t('dayMissed'), pending: t('dayPending'), off: t('dayOff') };
+  const checkLabel = future ? t('cantCompleteFuture') : t(done ? 'markUndoneNamed' : 'markDoneNamed', { name: habit.name });
+
   return `
-    <div class="card row habit-row-card ${doneToday ? 'done' : ''}">
-      <button class="icon-circle sm ${doneToday ? 'filled' : 'muted'} habit-toggle-btn habit-toggle ${habit.id === justToggledId ? 'pulse' : ''}" data-id="${habit.id}" title="${doneToday ? t('markUndone') : t('markDone')}" style="border:none;cursor:pointer;">
-        ${doneToday ? icon.check : icon.circle}
+    <div class="habit-row ${done ? 'done' : ''}">
+      <button class="habit-check ${done ? 'done' : ''} ${habit.id === justToggledId ? 'just' : ''}" data-id="${habit.id}"
+        aria-pressed="${done}" aria-label="${escapeAttr(checkLabel)}" ${future ? 'disabled' : ''}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <div class="grow habit-edit-trigger" data-id="${habit.id}" style="cursor:pointer;">
-        <div class="habit-name" style="font-size:12px; font-weight:700;">${escapeHtml(habit.name)}</div>
-        <div style="font-size:11px; color:var(--text-muted);">${subParts.length ? subParts.join(' · ') : t('everyDayLabel')}</div>
-        ${needsRelink ? `<div class="relink-warning">${icon.warnTriangle}${t('needsRelinkWarning')}</div>` : ''}
-      </div>
-      ${streak > 0 ? `<span class="chip streak"><span class="streak-flame">🔥</span>${streak}</span>` : ''}
-      <button class="chip clickable habit-edit-btn" data-id="${habit.id}" title="${t('edit')}" aria-label="${t('edit')}: ${escapeAttr(habit.name)}">${icon.pencil}</button>
-      <button class="chip clickable habit-remove" data-id="${habit.id}" title="${t('removeHabit')}" aria-label="${t('removeHabit')}: ${escapeAttr(habit.name)}">${icon.trash}</button>
+      <button class="habit-main habit-edit-trigger" data-id="${habit.id}" aria-label="${escapeAttr(t('editHabitNamed', { name: habit.name }))}">
+        <span class="habit-name">${escapeHtml(habit.name)}</span>
+        <span class="habit-meta">${meta.join(' · ')}</span>
+        ${needsRelink ? `<span class="relink-warning">${icon.warnTriangle}${t('needsRelinkWarning')}</span>` : ''}
+        <span class="habit-foot">
+          <span class="habit-days" role="img" aria-label="${escapeAttr(t('last7DaysSummary', { done: doneCount, total: scheduled }))}">
+            ${days.map((d) => `<span class="hd ${d.state}" title="${escapeAttr(fmtShortDate(d.date) + ': ' + stateLabel[d.state])}"><span class="hd-dot"></span><span class="hd-l" aria-hidden="true">${dayLetters[dayOfWeek(d.date)]}</span></span>`).join('')}
+          </span>
+          ${streakText ? `<span class="habit-streak">${streakText}</span>` : ''}
+        </span>
+      </button>
     </div>
   `;
 }
 
 function suggestionHtml(suggestion) {
   return `
-    <div class="card dashed">
-      <div class="row between" style="margin-bottom:4px;">
-        <span style="font-size:11.5px; font-weight:700; color:var(--accent);">${t('suggestedStackTitle')}</span>
+    <section class="card insight-card">
+      <div class="insight-kicker">${t('suggestedStackTitle')}</div>
+      <p class="insight-text">${suggestionCopy(suggestion)}</p>
+      <div class="row" style="gap:8px;">
+        <button class="btn primary sm grow" id="addSuggestBtn">${t('addBtn')}</button>
+        <button class="btn secondary sm grow" id="notNowBtn">${t('notNow')}</button>
       </div>
-      <div style="font-size:11px; margin-bottom:9px;">${suggestionCopy(suggestion)}</div>
-      <div class="row" style="gap:6px;">
-        <button class="chip solid clickable" id="addSuggestBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('addBtn')}</button>
-        <button class="chip clickable" id="notNowBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('notNow')}</button>
-      </div>
-    </div>
-  `;
-}
-
-function insightCardHtml(pattern) {
-  return `
-    <div class="card dashed">
-      <div class="row" style="gap:7px; margin-bottom:6px;">
-        ${icon.alert}
-        <span style="font-size:11.5px; font-weight:700; color:var(--accent);">${t('insightTitle')}</span>
-      </div>
-      <div style="font-size:12px; line-height:1.5; margin-bottom:9px;">${patternSentence(pattern)}</div>
-      <div class="row" style="gap:6px;">
-        <button class="chip solid clickable" id="viewInsightBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('insightCta')}</button>
-        <button class="chip clickable" id="dismissInsightBtn" style="flex:1; justify-content:center; padding:7px 0;">${t('notNow')}</button>
-      </div>
-    </div>
+    </section>
   `;
 }
 
@@ -735,9 +778,7 @@ function suggestionCopy(suggestion) {
 }
 
 function escapeHtml(s) {
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function escapeAttr(s) {

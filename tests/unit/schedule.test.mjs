@@ -120,3 +120,30 @@ test(`[${TZ}] event delete undo restores the exact rows, order and habit links`,
     assert.ok(db.habitOccursOnDate(habit(), '2026-10-27'));
   }
 });
+
+test(`[${TZ}] stacking before a routine finishes the habit {gap} minutes before it starts`, () => {
+  const ev = { start: '08:00', end: '10:50' };
+  assert.equal(db.stackedStartTime(ev, 'after', 10, 30), '11:00');
+  assert.equal(db.stackedStartTime(ev, undefined, 0, 30), '10:50'); // older habits: after, no gap
+  assert.equal(db.stackedStartTime(ev, 'before', 15, 20), '07:25');
+  assert.equal(db.stackedStartTime({ start: '00:10', end: '01:00' }, 'before', 0, 30), '23:40'); // wraps, no crash
+  const id = db.addHabit({ name: 'Pack bag', scheduleType: 'stacked', stackEventIds: ['c0', 'c2', 'c4'], offsetMinutes: 15, stackPosition: 'before', duration: 20 });
+  const h = db.getHabits().find((x) => x.id === id);
+  assert.equal(h.stackPosition, 'before');
+  assert.equal(db.habitTimeForDate(h, '2026-10-25'), '07:25');
+  assert.equal(db.habitEndTimeForDate(h, '2026-10-25'), '07:45');
+  const preview = db.previewStackedOccurrences(['c0', 'c2', 'c4'], 15, 20, 2, '2026-10-24', 'before');
+  assert.deepEqual(preview.map((p) => `${p.date} ${p.start}-${p.end}`), ['2026-10-25 07:25-07:45', '2026-10-27 07:25-07:45']);
+});
+
+test(`[${TZ}] 7-day history tells done, missed, pending and not-scheduled apart`, () => {
+  const h = db.getHabits().find((x) => x.id === 'mwf'); // Mon/Wed/Fri, done 19, 21, 23
+  const states = db.habitDayStates(h, 7, '2026-10-24');
+  assert.deepEqual(states.map((s) => `${s.date.slice(8)}:${s.state}`), ['18:off', '19:done', '20:off', '21:done', '22:off', '23:done', '24:off']);
+  const daily = { ...db.getHabits().find((x) => x.id === 'daily'), history: { '2026-10-23': true } };
+  const today = db.todayStr();
+  const last = db.habitDayStates(daily, 2, today);
+  assert.equal(last[1].state, daily.history[today] ? 'done' : 'pending'); // today is never "missed"
+  const created = { ...daily, createdAt: today, history: {} };
+  assert.equal(db.habitDayStates(created, 3, today)[0].state, 'off'); // before the habit existed
+});

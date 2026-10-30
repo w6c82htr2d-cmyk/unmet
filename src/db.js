@@ -163,11 +163,13 @@ export function addHabit(habit) {
     duration: habit.duration || DEFAULT_HABIT_DURATION,
     stackEventIds: habit.scheduleType === 'stacked' ? (habit.stackEventIds || []) : undefined,
     offsetMinutes: habit.scheduleType === 'stacked' ? (habit.offsetMinutes ?? 0) : undefined,
+    stackPosition: habit.scheduleType === 'stacked' && habit.stackPosition === 'before' ? 'before' : undefined,
     stackAfter: habit.stackAfter || '',
     history: {},
     createdAt: todayStr(),
   });
   saveHabits(habits);
+  return habits[habits.length - 1].id;
 }
 
 // Resolved duration in minutes. Existing habits saved before this field existed simply fall back to
@@ -181,6 +183,16 @@ export function habitDuration(habit) {
 // event row that actually occurs that day. Only one occurrence is ever used per date even if several
 // linked events happen to match (e.g. overlapping selections), so multi-event stacking can never
 // double-schedule a day.
+// Start time of a stacked habit relative to its routine occurrence: 'after' (default, and how every
+// habit saved before this option existed behaves) starts `offset` minutes after the routine ends;
+// 'before' finishes `offset` minutes before the routine starts.
+export function stackedStartTime(ev, position, offsetMinutes, durationMinutes) {
+  const offset = offsetMinutes || 0;
+  return position === 'before'
+    ? addMinutesToTime(ev.start, -(offset + (durationMinutes || 0)))
+    : addMinutesToTime(ev.end, offset);
+}
+
 function stackedEventForDate(habit, dateStr) {
   const ids = habit.stackEventIds || [];
   if (!ids.length) return null;
@@ -248,7 +260,7 @@ export function habitTimeForDate(habit, dateStr) {
   if (habit.scheduleType === 'stacked') {
     const ev = stackedEventForDate(habit, dateStr);
     if (!ev) return null;
-    return addMinutesToTime(ev.end, habit.offsetMinutes || 0);
+    return stackedStartTime(ev, habit.stackPosition, habit.offsetMinutes, habitDuration(habit));
   }
   if (!habitOccursOnDate(habit, dateStr)) return null;
   return habit.time || null;
@@ -321,6 +333,24 @@ export function habitStreak(habit) {
   return streak;
 }
 
+// Per-day state for the last `days` days ending at `endDate` (default today), oldest first:
+// 'done' | 'missed' (scheduled, in the past, not done) | 'pending' (scheduled today, not done yet)
+// | 'off' (not scheduled that day, or before the habit existed — never counted as a failure).
+export function habitDayStates(habit, days = 7, endDate = todayStr()) {
+  const today = todayStr();
+  const out = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const date = addDays(endDate, -i);
+    let state = 'off';
+    if (!(habit.createdAt && date < habit.createdAt) && date <= today && habitOccursOnDate(habit, date)) {
+      if (habit.history[date]) state = 'done';
+      else state = date === today ? 'pending' : 'missed';
+    }
+    out.push({ date, state });
+  }
+  return out;
+}
+
 // Longest streak ever, using the same scheduled-day logic, scanned forward from the habit's creation.
 export function longestHabitStreak(habit) {
   const start = habit.createdAt || todayStr();
@@ -373,7 +403,7 @@ export function consistencyRate(days) {
 // Next few real occurrences for a stacked habit being created/edited, across all of its (possibly
 // several) linked events, for the save-time preview. At most one occurrence per date, even if more
 // than one linked event happens to match that date.
-export function previewStackedOccurrences(eventIds, offsetMinutes, durationMinutes, count = 6, fromDate = todayStr()) {
+export function previewStackedOccurrences(eventIds, offsetMinutes, durationMinutes, count = 6, fromDate = todayStr(), position = 'after') {
   const linked = getEvents().filter((e) => eventIds.includes(e.id));
   const results = [];
   let d = fromDate;
@@ -381,7 +411,7 @@ export function previewStackedOccurrences(eventIds, offsetMinutes, durationMinut
   while (results.length < count && guard < 90) {
     const matched = linked.find((e) => eventOccursOnDate(e, d));
     if (matched) {
-      const start = addMinutesToTime(matched.end, offsetMinutes || 0);
+      const start = stackedStartTime(matched, position, offsetMinutes, durationMinutes);
       const end = addMinutesToTime(start, durationMinutes || 0);
       results.push({ date: d, start, end, eventTitle: matched.title });
     }

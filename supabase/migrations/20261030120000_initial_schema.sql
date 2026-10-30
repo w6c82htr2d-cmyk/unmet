@@ -78,6 +78,7 @@ create table public.habits (
   duration_min       smallint check (duration_min between 1 and 600),
   stack_event_ids    text[] not null default '{}' check (cardinality(stack_event_ids) <= 200),
   offset_minutes     smallint check (offset_minutes between -720 and 720),
+  stack_position     text check (stack_position in ('before', 'after')),   -- null = after
   stack_after        text check (char_length(stack_after) <= 500),  -- legacy free-text anchor
   created_on         date,
   extra              jsonb not null default '{}' check (jsonb_typeof(extra) = 'object' and pg_column_size(extra) <= 8192),

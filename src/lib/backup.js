@@ -27,6 +27,7 @@ function validHabit(h) {
     && (h.days === undefined || (Array.isArray(h.days) && h.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)))
     && (h.stackEventIds === undefined || (Array.isArray(h.stackEventIds) && h.stackEventIds.every(isId)))
     && isOptStr(h.createdAt, 40)
+    && (h.stackPosition === undefined || h.stackPosition === 'before' || h.stackPosition === 'after')
     && isOptStr(h.time, 5) && isOptStr(h.stackAfter, 500);
 }
 

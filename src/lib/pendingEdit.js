@@ -19,12 +19,40 @@ export function consumePendingHabitEdit() {
 // creating a routine). An empty eventIds array just opens the form with nothing preselected.
 let pendingAddHabit = null;
 
-export function requestAddHabit(eventIds = []) {
-  pendingAddHabit = { eventIds };
+// prefill: optional { name, duration } (e.g. a Task Splitter step turned into a habit).
+export function requestAddHabit(eventIds = [], prefill = {}) {
+  pendingAddHabit = { eventIds, prefill };
 }
 
 export function consumePendingAddHabit() {
   const v = pendingAddHabit;
   pendingAddHabit = null;
+  return v;
+}
+
+// "Add a routine" from elsewhere (e.g. the habit form when there are no routines yet): opens the
+// Calendar straight into the routine form, optionally pre-filled ({ title, minutes, date }).
+let pendingAddRoutine = null;
+
+export function requestAddRoutine(prefill = {}) {
+  pendingAddRoutine = { ...prefill };
+}
+
+export function consumePendingAddRoutine() {
+  const v = pendingAddRoutine;
+  pendingAddRoutine = null;
+  return v;
+}
+
+// "Schedule in Calendar" from a Task Splitter step: opens the one-time event form pre-filled.
+let pendingAddEvent = null;
+
+export function requestAddEvent(prefill = {}) {
+  pendingAddEvent = { ...prefill };
+}
+
+export function consumePendingAddEvent() {
+  const v = pendingAddEvent;
+  pendingAddEvent = null;
   return v;
 }

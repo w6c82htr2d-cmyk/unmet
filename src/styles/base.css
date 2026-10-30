@@ -689,3 +689,113 @@ button:focus:not(:focus-visible) { outline: none; }
 .account-email { font-weight: 700; }
 /* The resend countdown is information, so it stays readable while the button is disabled. */
 .auth-secondary .btn:disabled { opacity: 1; color: var(--text-muted); cursor: default; }
+
+/* ======================================================================
+   Home dashboard (today first) — habit rows, week card, insight card
+   ====================================================================== */
+.home { gap: 18px; }
+.home-head { display: flex; flex-direction: column; gap: 2px; }
+.home-greeting { font-size: 24px; line-height: 1.2; font-weight: 700; margin: 0; letter-spacing: -0.2px; }
+.section-title { font-size: 17px; font-weight: 700; margin: 0; color: var(--text); }
+.today-section { display: flex; flex-direction: column; gap: 10px; }
+.today-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.today-count { font-size: 13px; color: var(--text-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.add-habit-btn { padding: 0 14px; gap: 6px; flex-shrink: 0; }
+.add-habit-btn svg { width: 16px; height: 16px; }
+.today-bar { height: 6px; border-radius: 6px; background: var(--card-strong); overflow: hidden; }
+.today-bar span { display: block; height: 100%; background: var(--accent); border-radius: 6px; transition: width .35s ease; }
+.habit-list { display: flex; flex-direction: column; gap: 8px; }
+
+.habit-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 12px 12px 10px; border-radius: var(--radius-card);
+  background: var(--card); border: 1px solid transparent; transition: background .2s ease, border-color .2s ease;
+}
+.habit-row.done { background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
+.habit-check {
+  all: unset; box-sizing: border-box; cursor: pointer; flex-shrink: 0;
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--text-faint); color: transparent;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+.habit-check svg { width: 22px; height: 22px; }
+.habit-check:hover:not(:disabled) { border-color: var(--accent); }
+.habit-check.done { background: var(--accent); border-color: var(--accent); color: var(--accent-text-on); }
+.habit-check:disabled { opacity: .45; cursor: not-allowed; }
+.habit-check.just { animation: check-pop .32s ease-out; }
+.habit-check.just svg path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: check-draw .3s .05s ease-out forwards; }
+@keyframes check-pop { 0% { transform: scale(.82); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes check-draw { to { stroke-dashoffset: 0; } }
+
+.habit-main {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 3px; padding: 2px 0; border-radius: 8px;
+}
+.habit-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.habit-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; overflow-wrap: anywhere; }
+.habit-row.done .habit-name { color: var(--text-muted); }
+.habit-meta { font-size: 13px; color: var(--text-muted); line-height: 1.35; }
+.habit-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.habit-days { display: inline-flex; gap: 6px; }
+.hd { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
+.hd-dot { width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; }
+.hd.done .hd-dot { background: var(--accent); }
+.hd.missed .hd-dot { border: 2px solid var(--text-faint); }
+.hd.pending .hd-dot { border: 2px solid var(--accent); }
+.hd.off .hd-dot { width: 6px; height: 6px; margin: 4px; background: var(--card-strong); }
+.hd-l { font-size: 11px; color: var(--text-faint); line-height: 1; }
+.habit-streak { font-size: 12px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.week-card { display: flex; flex-direction: column; gap: 10px; }
+.week-card h2 { margin: 0; }
+.week-main { display: flex; align-items: baseline; gap: 12px; }
+.week-pct { font-family: var(--font-head-en); font-size: 40px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+.week-pct span { font-size: 20px; color: var(--text-muted); margin-inline-start: 2px; }
+.week-desc { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
+.week-foot { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
+.week-foot strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.week-empty { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+.insight-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.insight-kicker { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: .3px; }
+.insight-text { font-size: 14px; line-height: 1.5; margin: 0; color: var(--text); }
+.relink-card { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.relink-title { font-size: 13px; font-weight: 700; color: var(--danger); }
+
+/* ---------- Add / edit habit form ---------- */
+.habit-form { display: flex; flex-direction: column; gap: 16px; }
+.form-title { margin: 0; font-size: 16px; font-weight: 700; }
+.q { display: flex; flex-direction: column; gap: 8px; }
+.q-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--text); }
+.q-num {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 800;
+}
+.choice-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice {
+  all: unset; box-sizing: border-box; cursor: pointer; min-height: 44px; min-width: 44px; padding: 0 12px;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 12px;
+  background: var(--card-strong); color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.choice.on { background: var(--accent); color: var(--accent-text-on); }
+.seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--card-strong); }
+.seg-btn {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: 1; min-height: 44px; padding: 0 8px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-size: 13px; font-weight: 700; color: var(--text-muted);
+}
+.seg-btn.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.inline-field { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+.inline-field .field { width: 110px; }
+.form-error { font-size: 13px; line-height: 1.5; color: var(--danger); font-weight: 600; }
+.form-actions { display: flex; gap: 8px; }
+.form-note { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 0; }
+.danger-text { color: var(--danger); }
+.btn.ghost.danger-text svg { width: 16px; height: 16px; }
+.search-field { display: flex; align-items: center; gap: 8px; background: var(--card-strong); border-radius: 11px; padding: 0 10px; color: var(--text-faint); }
+.search-field .field { border: none; background: none; }
+.event-picker-members summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--accent); min-height: 32px; display: flex; align-items: center; padding-inline-start: 34px; }
+@media (prefers-reduced-motion: reduce) {
+  .habit-check.just, .habit-check.just svg path { animation: none; stroke-dashoffset: 0; }
+}

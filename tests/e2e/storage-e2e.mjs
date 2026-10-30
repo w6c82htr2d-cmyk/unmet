@@ -23,7 +23,7 @@ await p.click(`.habit-check[data-id="${id}"]`); await p.waitForTimeout(200);
 check('Habit: warning shown', (await warning(p)).includes("wasn't saved"));
 check('Habit: not shown as completed', !(await p.$eval(`.habit-check[data-id="${id}"]`, (b) => b.classList.contains('done'))));
 check('Habit: stored data unchanged', (await p.evaluate(() => localStorage.getItem('unmet_habits'))) === before);
-await p.screenshot({ path: '/tmp/claude-0/-home-user-unmet/21996b0a-b92e-5a65-ba61-73b0a27f25ce/scratchpad/phase0b/storage-warning.png' });
+await p.screenshot({ path: '/tmp/unmet-storage-warning.png' });
 await p.click('.storage-warning .btn.ghost'); await p.waitForTimeout(100);
 check('Warning can be dismissed', (await p.locator('.storage-warning').count()) === 0);
 

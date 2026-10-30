@@ -54,6 +54,6 @@ check('The replaced data became the new backup (undoable)', reason === 'restore'
 // 5. Download backup works
 const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#downloadBackupBtn')]);
 check('Download backup produces a JSON file', /^unmet-backup-\d{4}-\d{2}-\d{2}\.json$/.test(dl.suggestedFilename()), dl.suggestedFilename());
-await p.screenshot({ path: '/tmp/claude-0/-home-user-unmet/21996b0a-b92e-5a65-ba61-73b0a27f25ce/scratchpad/phase0/settings-backup.png', fullPage: true });
+await p.screenshot({ path: '/tmp/unmet-settings-backup.png', fullPage: true });
 console.log(`\n${pass} passed, ${fail} failed; errors ${JSON.stringify(errors)}`);
 await browser.close();

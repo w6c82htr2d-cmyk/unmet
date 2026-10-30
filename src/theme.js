@@ -26,7 +26,11 @@ export function getTheme() {
 
 export function setTheme(theme) {
   currentTheme = theme;
-  localStorage.setItem(THEME_KEY, theme);
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Applies for this visit even if it can't be remembered.
+  }
   document.documentElement.setAttribute('data-theme', theme);
 }
 

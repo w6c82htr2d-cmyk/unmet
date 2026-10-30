@@ -21,7 +21,11 @@ export function hasTourBeenSeen() {
 }
 
 export function startTour() {
-  localStorage.setItem(SEEN_KEY, '1');
+  try {
+    localStorage.setItem(SEEN_KEY, '1');
+  } catch {
+    // Not saved: the tour may show again next visit, which is harmless.
+  }
   idx = 0;
   buildOverlay();
   showStep();

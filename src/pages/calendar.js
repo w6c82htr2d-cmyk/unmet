@@ -1,7 +1,7 @@
 import { t, getLang } from '../i18n.js';
 import { icon } from '../icons.js';
 import {
-  getEvents, addEvent, removeEvent, removeEventSeries, updateEvent, updateEventSeries, updateEventOccurrence,
+  getEvents, addEvent, addEvents, removeEvent, removeEventSeries, updateEvent, updateEventSeries, updateEventOccurrence,
   removeEventOccurrence, eventsForDate, habitsForDate, todayStr, dayOfWeek, addDays, uid,
   habitLinkedEventTitles, updateHabit, getCalendarView, setCalendarView, getHabits, hasRoutines,
   snapshotEventSeries, restoreEventSeries,
@@ -625,8 +625,11 @@ function attachBlockDrag(blockEl, row, colEl, root) {
       const durationMin = toMinutes(row.end) - toMinutes(row.start);
       const newStart = fromMinutes(newStartMin);
       const newEnd = fromMinutes(newStartMin + durationMin);
-      persistReschedule(row, newStart, newEnd);
-      renderCalendar(root);
+      try {
+        persistReschedule(row, newStart, newEnd);
+      } finally {
+        renderCalendar(root); // on a failed save this snaps the block back to its stored time
+      }
     }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp, { once: true });
@@ -745,9 +748,7 @@ function wireCreateForm(root) {
       const endDate = form.querySelector('#evRecurEnd').value || undefined;
       const seriesId = uid();
       const wasFirstRoutine = !hasRoutines();
-      selectedWeekdays.forEach((dow) => {
-        addEvent({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual', seriesId });
-      });
+      addEvents(selectedWeekdays.map((dow) => ({ title, type: 'weekly', dayOfWeek: dow, startDate, endDate, start, end, source: 'manual', seriesId })));
       if (wasFirstRoutine) {
         routineSuccessEventIds = getEvents().filter((e) => e.seriesId === seriesId).map((e) => e.id);
       }

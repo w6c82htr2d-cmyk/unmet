@@ -23,8 +23,32 @@ function read(key, fallback) {
   }
 }
 
+// Thrown when the browser refuses to save (storage full, blocked, private mode). Every save goes
+// through write(), so a failed save always (1) leaves the previously stored value untouched,
+// (2) raises an 'unmet:storage-failed' event that shows the user a warning, and (3) throws, so the
+// calling action stops before it shows anything as done.
+export class StorageError extends Error {
+  constructor(cause) {
+    super('Could not save to browser storage');
+    this.name = 'StorageError';
+    this.cause = cause;
+  }
+}
+
+export function isStorageError(err) {
+  return err?.name === 'StorageError';
+}
+
 function write(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  const json = JSON.stringify(value);
+  try {
+    localStorage.setItem(key, json);
+  } catch (err) {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('unmet:storage-failed', { detail: { reason: err?.name || 'Error' } }));
+    }
+    throw new StorageError(err);
+  }
 }
 
 export function uid() {
@@ -671,6 +695,11 @@ export function replaceAll(data) {
   });
 }
 
+// "Reset all data" removes everything UNMET keeps in this browser — including the local backup
+// copy and the remembered sync code — except the theme and language preferences.
+const KEEP_ON_RESET = new Set(['unmet_theme', 'unmet_lang']);
 export function resetAll() {
-  Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith('unmet_') && !KEEP_ON_RESET.has(k))
+    .forEach((k) => localStorage.removeItem(k));
 }

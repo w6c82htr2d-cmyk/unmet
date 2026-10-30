@@ -655,3 +655,16 @@ button:focus:not(:focus-visible) { outline: none; }
     transition-duration: 0.01ms !important; scroll-behavior: auto !important;
   }
 }
+
+/* ---------- Storage-failure warning (fixed at the top, stays until dismissed) ---------- */
+.storage-warning {
+  position: fixed; z-index: 40; left: 50%; transform: translateX(-50%);
+  top: calc(12px + env(safe-area-inset-top));
+  width: calc(100% - 32px); max-width: calc(var(--max-width) - 32px); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 14px;
+  background: var(--surface); color: var(--text);
+  border: 1.5px solid var(--danger); box-shadow: var(--shadow);
+}
+.sw-title { font-size: 14px; font-weight: 800; color: var(--danger); }
+.sw-body { font-size: 13px; line-height: 1.5; color: var(--text); }
+.sw-actions { display: flex; gap: 8px; justify-content: flex-end; }

@@ -1,6 +1,6 @@
 import { t } from '../i18n.js';
 import { icon } from '../icons.js';
-import { getFreeformEntries, addFreeformEntry, setFreeformPlan, addHabit, addGoal } from '../db.js';
+import { getFreeformEntries, addFreeformEntry, setFreeformPlan, addHabit, addGoal, isStorageError } from '../db.js';
 import { planFromJournal, isStubActive } from '../lib/aiPlan.js';
 import { splitGoal } from '../lib/taskSplitter.js';
 import { navigate } from '../router.js';
@@ -87,7 +87,8 @@ function renderTabContent(root) {
         activeTab = 'plan';
         renderFreeform(root);
       } catch (err) {
-        planError = t(err?.status === 429 ? 'planRateLimited' : 'planErrorNotice');
+        // A storage failure is reported by the app-wide warning; don't blame the AI for it.
+        planError = isStorageError(err) ? t('storageNotSavedShort') : t(err?.status === 429 ? 'planRateLimited' : 'planErrorNotice');
         generating = false;
         renderTabContent(root);
       }

@@ -120,8 +120,24 @@ export function getBackup() {
 }
 
 // Import: sections present in the file replace the same sections here; others are left alone.
+// All-or-nothing: if the browser refuses one section part-way, the sections already written are put
+// back, and the error is re-thrown so the caller doesn't report success.
+function atomically(change) {
+  const before = exportAll();
+  try {
+    change();
+  } catch (err) {
+    try {
+      replaceAll(before);
+    } catch {
+      // Rolling back failed too; the local backup (or downloaded copy) is the safety net.
+    }
+    throw err;
+  }
+}
+
 export function applyImport(validData) {
-  importAll(validData);
+  atomically(() => importAll(validData));
 }
 
 // Restore swaps the backup with the current data, so restoring can itself be undone.
@@ -129,7 +145,7 @@ export function restoreBackup() {
   const backup = getBackup();
   if (!backup) return false;
   const current = exportAll();
-  replaceAll(backup.data);
+  atomically(() => replaceAll(backup.data));
   try {
     localStorage.setItem(BACKUP_KEY, JSON.stringify({ createdAt: new Date().toISOString(), reason: 'restore', data: current }));
   } catch {

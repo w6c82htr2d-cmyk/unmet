@@ -19,6 +19,7 @@ import { renderHelp } from './pages/help.js';
 import { endTour } from './lib/tour.js';
 import { stopActiveDictation } from './lib/speechToText.js';
 import { dismissUndoToast } from './lib/undoToast.js';
+import { showStorageWarning, storageWorks } from './lib/storageWarning.js';
 
 const NAV_ITEMS = [
   { path: '/', icon: 'home', label: 'navHome' },
@@ -82,7 +83,16 @@ function renderShell() {
   });
 
   startRouter();
-  watchForNewDay();
+}
+
+// A failed save throws StorageError out of whatever action was running (so it never shows as done)
+// and fires 'unmet:storage-failed'; here that becomes a visible warning instead of a silent failure.
+function watchStorageFailures() {
+  window.addEventListener('unmet:storage-failed', () => showStorageWarning('failed'));
+  const swallow = (e) => { if ((e.error || e.reason)?.name === 'StorageError') e.preventDefault(); };
+  window.addEventListener('error', swallow);
+  window.addEventListener('unhandledrejection', swallow);
+  if (!storageWorks()) showStorageWarning('unavailable');
 }
 
 // When the tab comes back after midnight, refresh the pages whose content is "today" so they
@@ -126,6 +136,8 @@ export function rerenderShellChrome() {
 
 function boot() {
   document.documentElement.setAttribute('data-theme', getTheme());
+  watchStorageFailures(); // first, so even onboarding saves are covered
+  watchForNewDay();
   if (!isOnboarded()) {
     renderOnboarding(() => {
       renderShell();

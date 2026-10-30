@@ -9,7 +9,11 @@ export function getLang() {
 
 export function setLang(lang) {
   currentLang = lang;
-  localStorage.setItem(LANG_KEY, lang);
+  try {
+    localStorage.setItem(LANG_KEY, lang);
+  } catch {
+    // Applies for this visit even if it can't be remembered.
+  }
   applyDocAttrs();
 }
 

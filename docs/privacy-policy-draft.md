@@ -14,6 +14,7 @@
   **in your own browser**, on your device.
 - Your data leaves your device only when **you** use one of these features:
   - **AI planning** ("Turn into a plan"): the entry is sent to Anthropic to generate the plan.
+  - **AI Task Splitter** ("Break it down"): the task you type, plus any optional challenges or note you add, is sent to Anthropic to suggest steps.
   - **Sync codes**: a copy of your data is stored on our server provider (Upstash) under your code.
   - **Voice dictation**: your browser's speech service (for example Google in Chrome) processes the audio.
 - UNMET currently uses no analytics, no advertising trackers and no cookies, and we don't sell
@@ -46,7 +47,7 @@ Two extra copies may also be stored:
 
 **How to export it:** Settings → "Export my data" downloads a copy as a file.
 
-## 3. AI planning
+## 3. AI planning and the AI Task Splitter
 
 When you choose "Turn into a plan" in the free-form journal:
 
@@ -56,7 +57,13 @@ When you choose "Turn into a plan" in the free-form journal:
   - Our logs record only technical details, such as whether the request succeeded, how long it took and how much AI processing it used. They never include your text.
   - The resulting plan is saved on your device with the entry.
 - **How Anthropic handles it:** Anthropic processes the text under its commercial terms and privacy policy: [link]. [Owner to confirm and summarise Anthropic's current retention and model-training terms for API data.]
-- **If you don't want this:** don't use AI planning. Your journal still works entirely on your device.
+- **If you don't want this:** don't use AI planning. "Save entry" keeps a free-form entry on your device only, and the rest of the journal works entirely on your device.
+
+**AI Task Splitter.** When you choose "Break it down" in the Task Splitter:
+
+- **What we send:** the task text (up to 300 characters), the "what gets in the way" options you selected (if any), your optional note (up to 300 characters) and the app language. These go from your browser to our server function and then to **Anthropic**, which returns suggested steps.
+- **What we keep:** the same as AI planning above. Our server does not store the text, and our logs never include it. The steps are saved on your device. Your selected options and note are also remembered **on your device** for next time.
+- **If it isn't available:** the app shows general starter steps created on your device, and nothing is sent.
 
 **Abuse prevention:** to limit misuse, our server counts AI requests per visitor, using a one-way
 scrambled ("hashed") form of your IP address combined with a secret value. We do not store your IP
@@ -77,12 +84,17 @@ If you create or enter a sync code in Settings:
 - **Deleting it sooner:** use Settings → "Delete the synced copy". This deletes the server copy immediately. The data on your device stays.
 - **Abuse prevention:** sync requests are rate limited in the same hashed-IP way as AI requests (§3).
 
+## 4b. Reminders and weekly recap
+
+- **Reminders** are optional and off by default. They use your browser's own notifications, are created on your device and involve no server. Your choice is stored on your device.
+- **Your Week, Unmet** and **Insights** are calculated on your device from your own check-ins. A shared recap image is created on your device and contains only the numbers shown (habit names only if you turn that on). Nothing is uploaded by UNMET when you share it.
+
 ## 5. Voice dictation
 
 The microphone button in the Task Splitter and free-form journal uses your **browser's own speech
 recognition**.
 
-- UNMET never receives or stores audio. Only the resulting text appears in the text box, and it stays on your device unless you then use AI planning or sync.
+- UNMET never receives or stores audio. Only the resulting text appears in the text box, and it stays on your device unless you then use AI planning, the AI Task Splitter or sync.
 - Depending on your browser, the audio may be sent to the browser maker's speech service:
   - Chrome: Google
   - Edge: Microsoft
@@ -112,7 +124,7 @@ No method of storage or transmission is completely secure, and we can't guarante
 - **Deletion:**
   - Reset all data (device).
   - Delete the synced copy (server).
-  - AI planning text isn't stored by us; Anthropic's handling is described in §3.
+  - AI planning and Task Splitter text isn't stored by us; Anthropic's handling is described in §3.
 - [Owner/legal: add any rights that apply to your users' location, e.g. GDPR/UK GDPR rights and the legal bases for processing, or CCPA/CPRA notices, and how to contact you to exercise them.]
 
 ## 9. Children

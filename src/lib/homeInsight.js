@@ -23,7 +23,7 @@ export function weekdayLong(dow) {
   return d.toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', timeZone: 'UTC' });
 }
 
-function patternText(p) {
+export function patternText(p) {
   const name = escapeHtml(p.habitName);
   switch (p.type) {
     case 'weekday': return {

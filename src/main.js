@@ -14,6 +14,7 @@ import { renderEvening } from './pages/journalEvening.js';
 import { renderFreeform } from './pages/journalFreeform.js';
 import { renderTasks } from './pages/tasks.js';
 import { renderInsight } from './pages/insight.js';
+import { renderWeek } from './pages/week.js';
 import { renderSettings } from './pages/settings.js';
 import { renderHelp } from './pages/help.js';
 import { endTour } from './lib/tour.js';
@@ -66,6 +67,7 @@ function renderShell() {
   registerRoute('/help', renderHelp);
   registerRoute('/tasks', renderTasks);
   registerRoute('/insight', renderInsight);
+  registerRoute('/week', renderWeek);
   registerRoute('/settings', renderSettings);
   registerRoute('/account', renderAccountRoute);
   setNotFound(renderHome);

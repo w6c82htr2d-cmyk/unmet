@@ -22,6 +22,11 @@ export function renderInsight(root) {
         <div class="screen-subtitle">${t('insightsPageSubtitle')}</div>
       </header>
 
+      <button class="card recap-link" id="openWeekBtn">
+        <span class="recap-link-text"><span class="recap-link-title">${t('recapTitle')}</span><span class="recap-link-sub">${t('recapLinkSub')}</span></span>
+        <span class="recap-link-chev flip-x" aria-hidden="true">${icon.back}</span>
+      </button>
+
       ${patterns.map(patternCardHtml).join('')}
 
       ${journal ? `
@@ -47,6 +52,7 @@ export function renderInsight(root) {
   `;
 
   root.querySelector('#backBtn').addEventListener('click', () => navigate('/'));
+  root.querySelector('#openWeekBtn').addEventListener('click', () => navigate('/week'));
   wirePatternCards(root, rerender, patterns);
 }
 

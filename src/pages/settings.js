@@ -1,13 +1,16 @@
 import { t, getLang, setLang } from '../i18n.js';
 import { getTheme, setTheme } from '../theme.js';
 import { localDateStr } from '../lib/dates.js';
-import { getProfile, saveProfile, exportAll, importAll, resetAll } from '../db.js';
+import { getProfile, saveProfile, exportAll, resetAll } from '../db.js';
+import { parseImportText, summarize, saveBackup, getBackup, applyImport, restoreBackup, downloadJson } from '../lib/backup.js';
 import { icon } from '../icons.js';
 import { navigate } from '../router.js';
 import { generateCode, getSavedCode, saveCodeLocally, forgetCodeLocally, pushToCode, pullFromCode } from '../lib/sync.js';
 
 let syncStatus = '';
 let syncBusy = false;
+let importPreview = null; // { name, data } — a validated file waiting for the user's confirmation
+let dataMessage = ''; // result/error line shown in the "Your data" card
 
 const GOAL_TRACKS = [
   { id: 'gpa', label: 'goalGPA', icon: 'bookGoal' },
@@ -63,7 +66,10 @@ export function renderSettings(root) {
         <label class="label-sm">${t('dataLabel')}</label>
         <button class="btn secondary" id="exportBtn">${t('exportData')}</button>
         <button class="btn secondary" id="importBtn">${t('importData')}</button>
-        <input type="file" id="importFile" accept="application/json" style="display:none" />
+        <input type="file" id="importFile" accept="application/json,.json" style="display:none" />
+        ${importPreview ? importPreviewHtml() : ''}
+        ${dataMessage ? `<div class="label-sm" role="status">${escapeHtml(dataMessage)}</div>` : ''}
+        ${backupHtml()}
         <button class="btn secondary" id="resetBtn" style="color:var(--danger);">${t('resetData')}</button>
       </div>
 
@@ -111,30 +117,50 @@ export function renderSettings(root) {
   });
 
   root.querySelector('#exportBtn').addEventListener('click', () => {
-    const data = exportAll();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `unmet-export-${localDateStr()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadJson(exportAll(), `unmet-export-${localDateStr()}.json`);
   });
 
   root.querySelector('#importBtn').addEventListener('click', () => root.querySelector('#importFile').click());
   root.querySelector('#importFile').addEventListener('change', async (e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
-    try {
-      const data = JSON.parse(await file.text());
-      importAll(data);
-      location.reload();
-    } catch {
-      alert(t('dataImportError'));
-    }
+    // Validate fully before anything is written; a bad file changes nothing.
+    const result = file.size > 5 * 1024 * 1024 ? { ok: false, section: 'size' } : parseImportText(await file.text());
+    importPreview = result.ok ? { name: file.name, data: result.data } : null;
+    dataMessage = result.ok ? '' : t(result.section === 'size' ? 'importErrorSize' : 'dataImportError');
+    renderSettings(root);
   });
+
+  const confirmImportBtn = root.querySelector('#confirmImportBtn');
+  if (confirmImportBtn) {
+    confirmImportBtn.addEventListener('click', () => {
+      if (!saveBackup('import')) {
+        // Storage refused the backup: hand the user a downloaded copy before changing anything.
+        downloadJson(exportAll(), `unmet-backup-${localDateStr()}.json`);
+        alert(t('backupFailedDownloaded'));
+      }
+      applyImport(importPreview.data);
+      importPreview = null;
+      location.reload();
+    });
+    root.querySelector('#cancelImportBtn').addEventListener('click', () => {
+      importPreview = null;
+      renderSettings(root);
+    });
+  }
+
+  const restoreBtn = root.querySelector('#restoreBackupBtn');
+  if (restoreBtn) {
+    restoreBtn.addEventListener('click', () => {
+      if (!confirm(t('restoreConfirm'))) return;
+      if (restoreBackup()) location.reload();
+    });
+    root.querySelector('#downloadBackupBtn').addEventListener('click', () => {
+      const b = getBackup();
+      if (b) downloadJson(b.data, `unmet-backup-${localDateStr(new Date(b.createdAt))}.json`);
+    });
+  }
 
   root.querySelector('#resetBtn').addEventListener('click', () => {
     if (confirm(t('resetConfirm'))) {
@@ -144,6 +170,46 @@ export function renderSettings(root) {
   });
 
   wireSyncSection(root);
+}
+
+function summaryLineHtml(data) {
+  return escapeHtml(t('summaryLine', summarize(data)));
+}
+
+function importPreviewHtml() {
+  return `
+    <div class="import-preview" role="region" aria-label="${escapeAttr(t('importData'))}">
+      <div class="ip-title">${t('importPreviewTitle', { name: escapeHtml(importPreview.name) })}</div>
+      <div class="label-sm">${t('importFileHas')}</div>
+      <div class="ip-line">${summaryLineHtml(importPreview.data)}</div>
+      <div class="label-sm">${t('importCurrentHas')}</div>
+      <div class="ip-line">${summaryLineHtml(exportAll())}</div>
+      <div class="ip-note">${t('importWillReplace')} ${t('importBackupNote')}</div>
+      <div class="row" style="gap:8px;">
+        <button class="btn secondary grow" id="cancelImportBtn">${t('cancel')}</button>
+        <button class="btn primary grow" id="confirmImportBtn">${t('importConfirmBtn')}</button>
+      </div>
+    </div>
+  `;
+}
+
+const BACKUP_REASON_KEYS = { import: 'backupReasonImport', 'sync-pull': 'backupReasonSync', restore: 'backupReasonRestore' };
+
+function backupHtml() {
+  const b = getBackup();
+  if (!b) return '';
+  const when = new Date(b.createdAt).toLocaleString(getLang() === 'ar' ? 'ar' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `
+    <div class="backup-box">
+      <div class="label-sm">${t('backupHeading')}</div>
+      <div class="ip-line">${escapeHtml(t('backupFrom', { when, reason: t(BACKUP_REASON_KEYS[b.reason] || 'backupReasonImport') }))}</div>
+      <div class="ip-line">${summaryLineHtml(b.data)}</div>
+      <div class="row" style="gap:8px;">
+        <button class="btn secondary grow" id="downloadBackupBtn">${t('downloadBackupBtn')}</button>
+        <button class="btn secondary grow" id="restoreBackupBtn">${t('restoreBackupBtn')}</button>
+      </div>
+    </div>
+  `;
 }
 
 function syncSectionHtml() {
@@ -290,5 +356,9 @@ function wireSyncSection(root) {
 }
 
 function escapeAttr(s) {
-  return String(s || '').replace(/"/g, '&quot;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

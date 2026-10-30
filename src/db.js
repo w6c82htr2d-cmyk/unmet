@@ -631,6 +631,14 @@ export function importAll(data) {
   });
 }
 
+// Full replacement (used to restore a backup): sections missing from `data` are cleared too.
+export function replaceAll(data) {
+  Object.values(KEYS).forEach((k) => {
+    if (data[k] !== undefined) write(k, data[k]);
+    else localStorage.removeItem(k);
+  });
+}
+
 export function resetAll() {
   Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
 }

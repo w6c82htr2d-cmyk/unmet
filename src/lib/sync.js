@@ -1,4 +1,6 @@
 import { exportAll, importAll } from '../db.js';
+import { validateImportData, saveBackup, downloadJson } from './backup.js';
+import { localDateStr } from './dates.js';
 
 const CODE_KEY = 'unmet_sync_code';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L, less mis-typing
@@ -40,5 +42,9 @@ export async function pushToCode(code) {
 
 export async function pullFromCode(code) {
   const { data } = await callSync('pull', code);
-  importAll(data);
+  // Same safeguards as a file import: validate first, back up the current data, then apply.
+  const result = validateImportData(data);
+  if (!result.ok) throw new Error('Synced data failed validation.');
+  if (!saveBackup('sync-pull')) downloadJson(exportAll(), `unmet-backup-${localDateStr()}.json`);
+  importAll(result.data);
 }

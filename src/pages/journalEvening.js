@@ -53,7 +53,7 @@ export function renderEvening(root) {
 
       <div>
         <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">${t('obstaclePrompt')}</div>
-        <textarea class="field" id="obstacleInput" rows="2" placeholder="${t('obstaclePlaceholder')}">${escapeHtml(draft.obstacle)}</textarea>
+        <textarea class="field" id="obstacleInput" rows="2" placeholder="${t('obstaclePlaceholder')}" aria-label="${t('obstaclePlaceholder')}">${escapeHtml(draft.obstacle)}</textarea>
       </div>
 
       <div>

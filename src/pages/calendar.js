@@ -252,18 +252,18 @@ export function renderCalendar(root) {
 
       <div class="row between">
         <div class="toggle-pill" id="viewToggle">
-          <button data-val="day" class="${viewMode === 'day' ? 'active' : ''}">${t('dayViewLabel')}</button>
-          <button data-val="week" class="${viewMode === 'week' ? 'active' : ''}">${t('weekViewLabel')}</button>
+          <button data-val="day" class="${viewMode === 'day' ? 'active' : ''}" aria-pressed="${viewMode === 'day'}">${t('dayViewLabel')}</button>
+          <button data-val="week" class="${viewMode === 'week' ? 'active' : ''}" aria-pressed="${viewMode === 'week'}">${t('weekViewLabel')}</button>
         </div>
         <button class="chip clickable" id="todayBtn">${t('todayBtn')}</button>
       </div>
 
       <div class="row between">
-        <button class="btn secondary sm" id="prevBtn">${icon.back}</button>
+        <button class="btn secondary sm" id="prevBtn" aria-label="${t('previousPeriod')}">${icon.back}</button>
         <span class="label-sm" style="font-weight:700; font-size:12.5px; color:var(--text);" dir="${getLang() === 'ar' ? 'rtl' : 'ltr'}">${viewMode === 'day'
           ? dateForDisplay(selectedDate).toLocaleDateString(getLang() === 'ar' ? 'ar' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })
           : `${fmtShort(weekStart)} – ${fmtShort(addDays(weekStart, 6))}`}</span>
-        <button class="btn secondary sm" id="nextBtn" style="transform:scaleX(-1);">${icon.back}</button>
+        <button class="btn secondary sm" id="nextBtn" aria-label="${t('nextPeriod')}" style="transform:scaleX(-1);">${icon.back}</button>
       </div>
 
       ${viewMode === 'day' ? dayStripHtml(days) : ''}
@@ -689,13 +689,13 @@ function eventFormHtml() {
   const d = formDraft;
   return `
     <form id="eventForm" class="card col">
-      <input class="field" id="evTitle" placeholder="${t('eventTitlePlaceholder')}" value="${escapeAttr(d.title || '')}" required />
+      <input class="field" id="evTitle" placeholder="${t('eventTitlePlaceholder')}" aria-label="${t('eventTitlePlaceholder')}" value="${escapeAttr(d.title || '')}" required />
       <div class="row" style="gap:14px;">
-        <label class="row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="once" ${formType === 'once' ? 'checked' : ''}/> ${t('once')}</label>
-        <label class="row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="weekly" ${formType === 'weekly' ? 'checked' : ''}/> ${t('recurWeekly')}</label>
+        <label class="row radio-row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="once" ${formType === 'once' ? 'checked' : ''}/> ${t('once')}</label>
+        <label class="row radio-row" style="gap:5px; font-size:11.5px;"><input type="radio" name="evType" value="weekly" ${formType === 'weekly' ? 'checked' : ''}/> ${t('recurWeekly')}</label>
       </div>
       ${formType === 'once' ? `
-        <input class="field" type="date" id="evDate" value="${d.date || selectedDate}" />
+        <input class="field" type="date" id="evDate" aria-label="${t('eventDate')}" value="${d.date || selectedDate}" />
       ` : `
         <div>
           <label class="label-sm" style="display:block; margin-bottom:6px;">${t('repeatsOnLabel')}</label>
@@ -706,14 +706,14 @@ function eventFormHtml() {
           </div>
         </div>
         <div class="row" style="gap:8px;">
-          <div class="col grow"><label class="label-sm">${t('recurStartLabel')}</label><input class="field" type="date" id="evRecurStart" value="${d.recurStart || selectedDate}" /></div>
-          <div class="col grow"><label class="label-sm">${t('recurEndLabel')}</label><input class="field" type="date" id="evRecurEnd" value="${d.recurEnd || ''}" min="${d.recurStart || selectedDate}" /></div>
+          <div class="col grow"><label class="label-sm">${t('recurStartLabel')}</label><input class="field" type="date" id="evRecurStart" aria-label="${t('recurStartLabel')}" value="${d.recurStart || selectedDate}" /></div>
+          <div class="col grow"><label class="label-sm">${t('recurEndLabel')}</label><input class="field" type="date" id="evRecurEnd" aria-label="${t('recurEndLabel')}" value="${d.recurEnd || ''}" min="${d.recurStart || selectedDate}" /></div>
         </div>
-        <div style="font-size:10px; color:var(--text-muted);">${t('recurEndHint')}</div>
+        <div style="font-size:11px; color:var(--text-muted);">${t('recurEndHint')}</div>
       `}
       <div class="row" style="gap:8px;">
-        <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="evStart" value="${d.start || ''}" required /></div>
-        <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="evEnd" value="${d.end || ''}" required /></div>
+        <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="evStart" aria-label="${t('eventStart')}" value="${d.start || ''}" required /></div>
+        <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="evEnd" aria-label="${t('eventEnd')}" value="${d.end || ''}" required /></div>
       </div>
       <button class="btn primary" type="submit">${t('saveEvent')}</button>
     </form>
@@ -787,15 +787,15 @@ function eventEditModalHtml({ event: ev, scope }) {
       <div class="modal-sheet">
         <div class="row between" style="margin-bottom:12px;">
           <span style="font-weight:700; font-size:14px;">${t('editEventTitle')}</span>
-          <button class="chip clickable" id="closeModalBtn">${icon.close}</button>
+          <button class="chip clickable" id="closeModalBtn" aria-label="${t('cancel')}" title="${t('cancel')}">${icon.close}</button>
         </div>
         ${ev.source === 'ics' ? `<div class="label-sm" style="margin-bottom:8px;">${t('icsLocalCopyNote')}</div>` : ''}
         <form id="eventEditForm" class="col">
-          <input class="field" id="modalTitle" value="${escapeAttr(ev.title)}" required />
-          ${ev.type === 'once' ? `<div class="col"><label class="label-sm">${t('eventDate')}</label><input class="field" type="date" id="modalDate" value="${ev.date}" /></div>` : ''}
+          <input class="field" id="modalTitle" aria-label="${t('eventTitlePlaceholder')}" value="${escapeAttr(ev.title)}" required />
+          ${ev.type === 'once' ? `<div class="col"><label class="label-sm">${t('eventDate')}</label><input class="field" type="date" id="modalDate" aria-label="${t('eventDate')}" value="${ev.date}" /></div>` : ''}
           <div class="row" style="gap:8px;">
-            <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="modalStart" value="${ev.start}" required /></div>
-            <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="modalEnd" value="${ev.end}" required /></div>
+            <div class="col grow"><label class="label-sm">${t('eventStart')}</label><input class="field" type="time" id="modalStart" aria-label="${t('eventStart')}" value="${ev.start}" required /></div>
+            <div class="col grow"><label class="label-sm">${t('eventEnd')}</label><input class="field" type="time" id="modalEnd" aria-label="${t('eventEnd')}" value="${ev.end}" required /></div>
           </div>
           ${isWeekly ? `
             <div>
@@ -906,7 +906,7 @@ function eventManageRow(ev) {
     <div class="card row" style="padding:10px 12px;">
       <div class="grow">
         <div style="font-size:12px; font-weight:700;">${escapeHtml(ev.title)}</div>
-        <div style="font-size:10px; color:var(--text-muted);">${subtitle}</div>
+        <div style="font-size:11px; color:var(--text-muted);">${subtitle}</div>
       </div>
       <button class="chip clickable event-edit" data-id="${ev.id}" title="${t('edit')}">${icon.pencil}</button>
       <button class="chip clickable event-remove" data-id="${ev.id}" title="${t('delete')}">${icon.trash}</button>
@@ -921,5 +921,5 @@ function escapeHtml(s) {
 }
 
 function escapeAttr(s) {
-  return String(s || '').replace(/"/g, '&quot;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }

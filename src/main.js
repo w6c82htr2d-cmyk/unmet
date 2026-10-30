@@ -45,8 +45,8 @@ function renderShell() {
         <div class="topbar-inner">
           <a href="#/" class="brand">${brandMarkSvg()}<span class="brand-name">${t('appName').toUpperCase()}</span></a>
           <div class="controls">
-            <button id="helpBtn" class="icon-circle sm muted" title="${t('openHelp')}" style="cursor:pointer;border:none;">${icon.help}</button>
-            <button id="settingsBtn" class="icon-circle sm muted" style="cursor:pointer;border:none;">${icon.settings}</button>
+            <button id="helpBtn" class="icon-circle sm muted" title="${t('openHelp')}" aria-label="${t('openHelp')}" style="cursor:pointer;border:none;">${icon.help}</button>
+            <button id="settingsBtn" class="icon-circle sm muted" title="${t('settingsTitle')}" aria-label="${t('settingsTitle')}" style="cursor:pointer;border:none;">${icon.settings}</button>
           </div>
         </div>
       </div>

@@ -58,7 +58,7 @@ function renderTabContent(root) {
     container.innerHTML = `
       <div class="col" style="flex:1;">
         <div class="textarea-wrap">
-          <textarea class="field" id="brainDump" style="min-height:180px;" placeholder="${t('brainDumpPlaceholder')}">${escapeHtml(draftText)}</textarea>
+          <textarea class="field" id="brainDump" style="min-height:180px;" placeholder="${t('brainDumpPlaceholder')}" aria-label="${t('brainDumpPlaceholder')}">${escapeHtml(draftText)}</textarea>
           ${micButtonHtml('journalMic')}
         </div>
         <button class="btn primary" id="planBtn" ${generating ? 'disabled' : ''}>
@@ -143,7 +143,7 @@ function planGoalCard(g) {
         <span style="font-size:12px; font-weight:700;">${escapeHtml(g.text)}</span>
         <span class="chip accent">${t('tag' + capitalize(g.importance))}</span>
       </div>
-      <div style="font-size:10.5px; color:var(--text-muted);">${escapeHtml(g.firstStep.label)}</div>
+      <div style="font-size:11.5px; color:var(--text-muted);">${escapeHtml(g.firstStep.label)}</div>
       <button class="btn secondary sm goal-action" data-goal-id="${g.id}" style="align-self:flex-start; margin-top:4px;">
         ${g.firstStep.type === 'task' ? t('editPlan') : (g.firstStep.type === 'stack' ? t('addHabit') : t('addEvent'))}
       </button>

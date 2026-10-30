@@ -99,3 +99,13 @@ test('saveBackup reports failure when storage is full', () => {
     localStorage.setItem = realSet;
   }
 });
+
+test('goal delete can be undone exactly', () => {
+  backup.applyImport({ unmet_goals: [{ id: 'g1', text: 'A', subtasks: [] }, { id: 'g2', text: 'B', subtasks: [] }] });
+  const before = localStorage.getItem('unmet_goals');
+  const removed = db.removeGoal('g1');
+  assert.equal(db.getGoals().length, 1);
+  db.restoreGoal(removed);
+  assert.equal(localStorage.getItem('unmet_goals'), before);
+  assert.equal(db.removeGoal('missing'), null);
+});

@@ -63,7 +63,7 @@ function priorityCard(p, i) {
     <div class="card col">
       <div class="row" style="gap:8px;">
         <div class="chip solid" style="min-width:20px; justify-content:center;">${i + 1}</div>
-        <input class="field grow priority-text" data-i="${i}" placeholder="${t('priorityPlaceholder', { n: i + 1 })}" value="${escapeAttr(p.text)}" />
+        <input class="field grow priority-text" data-i="${i}" placeholder="${t('priorityPlaceholder', { n: i + 1 })}" aria-label="${t('priorityPlaceholder', { n: i + 1 })}" value="${escapeAttr(p.text)}" />
       </div>
       <div class="row between">
         <div class="row" style="gap:4px;">
@@ -72,7 +72,7 @@ function priorityCard(p, i) {
           `).join('')}
         </div>
         <span class="label-sm">${t('timeEstimate')}</span>
-        <input class="field priority-minutes" data-i="${i}" type="number" min="0" style="width:64px; padding:6px 8px;" placeholder="${t('timeEstimatePlaceholder')}" value="${p.minutes || ''}" />
+        <input class="field priority-minutes" data-i="${i}" type="number" min="0" style="width:64px; padding:6px 8px;" placeholder="${t('timeEstimatePlaceholder')}" aria-label="${t('timeEstimatePlaceholder')}" value="${p.minutes || ''}" />
       </div>
     </div>
   `;
@@ -84,5 +84,5 @@ function capitalize(s) {
 }
 
 function escapeAttr(s) {
-  return String(s || '').replace(/"/g, '&quot;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }

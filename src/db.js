@@ -630,8 +630,21 @@ export function toggleSubtask(goalId, subtaskId) {
   saveGoals(goals);
 }
 
+// Returns the removed goal and its position so the caller can offer an exact undo.
 export function removeGoal(id) {
-  saveGoals(getGoals().filter((g) => g.id !== id));
+  const goals = getGoals();
+  const index = goals.findIndex((g) => g.id === id);
+  if (index === -1) return null;
+  const [goal] = goals.splice(index, 1);
+  saveGoals(goals);
+  return { goal, index };
+}
+
+export function restoreGoal({ goal, index }) {
+  const goals = getGoals();
+  if (goals.some((g) => g.id === goal.id)) return;
+  goals.splice(Math.min(index, goals.length), 0, goal);
+  saveGoals(goals);
 }
 
 // ---------- Export / Import / Reset ----------

@@ -30,12 +30,12 @@ function topControls() {
   return `
     <div class="row between">
       <div class="toggle-pill" id="themeToggle">
-        <button data-val="light" class="${theme === 'light' ? 'active' : ''}">${icon.sun}</button>
-        <button data-val="dark" class="${theme === 'dark' ? 'active' : ''}">${icon.moon}</button>
+        <button data-val="light" class="${theme === 'light' ? 'active' : ''}" aria-label="${t('modeLight')}" aria-pressed="${theme === 'light'}">${icon.sun}</button>
+        <button data-val="dark" class="${theme === 'dark' ? 'active' : ''}" aria-label="${t('modeDark')}" aria-pressed="${theme === 'dark'}">${icon.moon}</button>
       </div>
       <div class="toggle-pill" id="langToggle">
-        <button data-val="en" class="${lang === 'en' ? 'active' : ''}">EN</button>
-        <button data-val="ar" class="${lang === 'ar' ? 'active' : ''}">AR</button>
+        <button data-val="en" class="${lang === 'en' ? 'active' : ''}" aria-label="${t('english')}" aria-pressed="${lang === 'en'}">EN</button>
+        <button data-val="ar" class="${lang === 'ar' ? 'active' : ''}" aria-label="${t('arabic')}" aria-pressed="${lang === 'ar'}">AR</button>
       </div>
     </div>
   `;
@@ -71,7 +71,7 @@ function renderStep(app, onComplete) {
         </div>
         <div class="col" style="gap:8px;">
           <label class="label-sm">${t('namePrompt')}</label>
-          <input class="field" id="nameInput" placeholder="${t('namePlaceholder')}" value="${state.firstName}" />
+          <input class="field" id="nameInput" placeholder="${t('namePlaceholder')}" aria-label="${t('namePlaceholder')}" value="${escapeAttr(state.firstName)}" />
         </div>
         <div style="flex:1"></div>
         <button class="btn primary" id="nextBtn">${t('continueBtn')}</button>
@@ -182,4 +182,8 @@ function renderStep(app, onComplete) {
     saveProfile({ firstName: state.firstName, goalTracks: state.goalTracks, onboarded: true });
     onComplete();
   });
+}
+
+function escapeAttr(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }

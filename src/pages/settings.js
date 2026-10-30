@@ -30,23 +30,23 @@ export function renderSettings(root) {
       <h2 class="screen-title">${t('settingsTitle')}</h2>
 
       <div class="card col">
-        <label class="label-sm">${t('yourName')}</label>
+        <label class="label-sm" for="nameInput">${t('yourName')}</label>
         <input class="field" id="nameInput" value="${escapeAttr(profile.firstName)}" />
       </div>
 
       <div class="card col">
         <label class="label-sm">${t('theme')}</label>
         <div class="toggle-pill" id="themeToggle">
-          <button data-val="light" class="${theme === 'light' ? 'active' : ''}">${icon.sun} ${t('modeLight')}</button>
-          <button data-val="dark" class="${theme === 'dark' ? 'active' : ''}">${icon.moon} ${t('modeDark')}</button>
+          <button data-val="light" class="${theme === 'light' ? 'active' : ''}" aria-pressed="${theme === 'light'}">${icon.sun} ${t('modeLight')}</button>
+          <button data-val="dark" class="${theme === 'dark' ? 'active' : ''}" aria-pressed="${theme === 'dark'}">${icon.moon} ${t('modeDark')}</button>
         </div>
       </div>
 
       <div class="card col">
         <label class="label-sm">${t('language')}</label>
         <div class="toggle-pill" id="langToggle">
-          <button data-val="en" class="${lang === 'en' ? 'active' : ''}">${t('english')}</button>
-          <button data-val="ar" class="${lang === 'ar' ? 'active' : ''}">${t('arabic')}</button>
+          <button data-val="en" class="${lang === 'en' ? 'active' : ''}" aria-pressed="${lang === 'en'}">${t('english')}</button>
+          <button data-val="ar" class="${lang === 'ar' ? 'active' : ''}" aria-pressed="${lang === 'ar'}">${t('arabic')}</button>
         </div>
       </div>
 
@@ -234,7 +234,7 @@ function syncSectionHtml() {
         <button class="btn secondary" id="getCodeBtn" ${syncBusy ? 'disabled' : ''}>${t('getCodeBtn')}</button>
         <label class="label-sm" style="margin-top:6px;">${t('haveCodeLabel')}</label>
         <div class="row" style="gap:8px;">
-          <input class="field grow" id="enterCodeInput" placeholder="${t('haveCodePlaceholder')}" style="text-transform:uppercase;" />
+          <input class="field grow" id="enterCodeInput" placeholder="${t('haveCodePlaceholder')}" aria-label="${t('haveCodePlaceholder')}" style="text-transform:uppercase;" />
           <button class="btn secondary sm" id="loadCodeBtn" ${syncBusy ? 'disabled' : ''}>${t('loadCodeBtn')}</button>
         </div>
       `}

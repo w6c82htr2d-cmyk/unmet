@@ -1,6 +1,7 @@
 import { t } from '../i18n.js';
 import { icon } from '../icons.js';
-import { getGoals, addGoal, removeGoal, toggleSubtask, addHabit } from '../db.js';
+import { getGoals, addGoal, removeGoal, restoreGoal, toggleSubtask, addHabit } from '../db.js';
+import { showUndoToast } from '../lib/undoToast.js';
 import { splitGoal, quadrant, findStalledSubtask } from '../lib/taskSplitter.js';
 import { micButtonHtml, wireMicButton, stopActiveDictation } from '../lib/speechToText.js';
 
@@ -22,7 +23,7 @@ export function renderTasks(root) {
       <form id="goalForm" class="card strong col">
         <div class="label-sm">${t('bigTaskLabel')}</div>
         <div class="row" style="gap:8px;">
-          <input class="field grow" id="goalInput" placeholder="${t('bigTaskPlaceholder')}" required />
+          <input class="field grow" id="goalInput" placeholder="${t('bigTaskPlaceholder')}" aria-label="${t('bigTaskPlaceholder')}" required />
           ${micButtonHtml('taskMic')}
           <button class="chip solid clickable" type="submit" style="white-space:nowrap;" ${breaking ? 'disabled' : ''}>${breaking ? t('breakingDown') : t('breakDown')}</button>
         </div>
@@ -62,8 +63,14 @@ export function renderTasks(root) {
 
   root.querySelectorAll('.goal-remove').forEach((btn) => {
     btn.addEventListener('click', () => {
-      removeGoal(btn.dataset.id);
+      const removed = removeGoal(btn.dataset.id);
       renderTasks(root);
+      if (removed) {
+        showUndoToast(t('goalRemovedToast'), t('undoBtn'), () => {
+          restoreGoal(removed);
+          renderTasks(root);
+        });
+      }
     });
   });
 
@@ -114,7 +121,7 @@ function goalCard(goal) {
     <div class="card col">
       <div class="row between">
         <span style="font-weight:700; font-size:13px;">${escapeHtml(goal.text)}</span>
-        <button class="chip clickable goal-remove" data-id="${goal.id}">${icon.trash}</button>
+        <button class="chip clickable goal-remove" data-id="${goal.id}" aria-label="${t('removeGoal')}: ${escapeAttr(goal.text)}" title="${t('removeGoal')}">${icon.trash}</button>
       </div>
 
       ${stalled ? `
@@ -151,12 +158,12 @@ function subtaskRow(goalId, s, isRecommended) {
   return `
     <div class="col" style="gap:0;">
       <div class="task-row card ${isRecommended && !s.done ? 'recommended' : ''}" style="padding:8px 10px; ${s.done ? 'opacity:.6;' : ''}">
-        <button class="task-dot ${s.importance === 'hi' ? 'hi' : 'lo'} subtask-toggle" data-goal="${goalId}" data-sub="${s.id}" style="border:none; cursor:pointer;"></button>
+        <button class="task-dot ${s.importance === 'hi' ? 'hi' : 'lo'} subtask-toggle" data-goal="${goalId}" data-sub="${s.id}" aria-pressed="${s.done ? 'true' : 'false'}" aria-label="${s.done ? t('markUndone') : t('markDone')}: ${escapeAttr(s.text)}" style="border:none; cursor:pointer;"></button>
         <div class="grow">
           ${isRecommended && !s.done ? `<div class="label-sm" style="color:var(--accent); margin-bottom:2px;">${t('nextUpBadge')}</div>` : ''}
           <span style="font-size:11px; ${s.done ? 'text-decoration:line-through;' : ''}">${escapeHtml(s.text)}</span>
         </div>
-        <span class="chip ${s.importance === 'hi' && s.urgency === 'hi' ? 'accent' : ''}" style="font-size:9px; padding:3px 7px;">${t(quadrant(s.importance, s.urgency))}</span>
+        <span class="chip ${s.importance === 'hi' && s.urgency === 'hi' ? 'accent' : ''}" style="font-size:11px; padding:3px 7px;">${t(quadrant(s.importance, s.urgency))}</span>
         ${!s.done && !isConverted ? `<button class="chip clickable convert-trigger" data-sub="${s.id}" title="${t('convertPrompt')}">${icon.plus}</button>` : ''}
       </div>
       ${isOpen ? `
@@ -177,5 +184,5 @@ function escapeHtml(s) {
 }
 
 function escapeAttr(s) {
-  return String(s || '').replace(/"/g, '&quot;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }

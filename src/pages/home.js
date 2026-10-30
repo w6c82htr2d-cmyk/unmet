@@ -508,10 +508,10 @@ function habitFormHtml(prefix, draft) {
   return `
     <form id="${prefix}Form" class="card col" style="margin-bottom:10px;">
       <div class="label-sm">${t(titleKey)}</div>
-      <input class="field" id="${prefix}Name" placeholder="${t('habitNamePlaceholder')}" value="${escapeAttr(draft.name)}" required />
+      <input class="field" id="${prefix}Name" placeholder="${t('habitNamePlaceholder')}" aria-label="${t('habitNamePlaceholder')}" value="${escapeAttr(draft.name)}" required />
 
       <label class="label-sm">${t('durationLabel')}</label>
-      <input class="field" type="number" min="5" max="240" step="5" id="${prefix}Duration" value="${draft.duration}" list="${prefix}DurationPresets" />
+      <input class="field" type="number" min="5" max="240" step="5" id="${prefix}Duration" aria-label="${t('durationLabel')}" value="${draft.duration}" list="${prefix}DurationPresets" />
       <datalist id="${prefix}DurationPresets">${DURATION_PRESETS.map((n) => `<option value="${n}"></option>`).join('')}</datalist>
       <div class="label-sm">${t('durationHint')}</div>
 
@@ -548,7 +548,7 @@ function independentFieldsHtml(prefix, draft) {
       <div class="label-sm" style="margin-top:4px;">${draft.days.length ? '' : t('everyDayHint')}</div>
     </div>
     <label class="label-sm">${t('habitTimeLabel')}</label>
-    <input class="field" type="time" id="${prefix}Time" value="${escapeAttr(draft.time)}" />
+    <input class="field" type="time" id="${prefix}Time" aria-label="${t('habitTimeLabel')}" value="${escapeAttr(draft.time)}" />
     <div class="label-sm">${t('habitTimeHint')}</div>
     ${draft.time ? previewIndepHtml(draft.days, draft.time, draft.duration) : ''}
   `;
@@ -573,14 +573,14 @@ function stackedFieldsHtml(prefix, draft) {
     <label class="label-sm">${t('selectEventsLabel')}</label>
     <div class="row" style="gap:6px; align-items:center; background:var(--field-bg, var(--card-strong)); border-radius:11px; padding:0 10px;">
       <span style="display:flex; color:var(--text-faint);">${icon.search}</span>
-      <input class="field grow event-search-input" id="${prefix}EventSearch" placeholder="${t('searchEventsPlaceholder')}" value="${escapeAttr(draft.eventFilter || '')}" style="border:none; background:none; padding:9px 0;" autocomplete="off" />
+      <input class="field grow event-search-input" id="${prefix}EventSearch" placeholder="${t('searchEventsPlaceholder')}" aria-label="${t('searchEventsPlaceholder')}" value="${escapeAttr(draft.eventFilter || '')}" style="border:none; background:none; padding:9px 0;" autocomplete="off" />
     </div>
     <div class="event-picker-list">
       ${filteredSeries.length ? filteredSeries.map((s) => seriesPickerGroup(s, draft)).join('') : `<div class="label-sm" style="padding:8px 2px;">${t('noMatchingEvents')}</div>`}
     </div>
     ${draft.eventIds.length ? selectedSummaryHtml(draft, allEvents) : `<div class="label-sm">${t('noEventsSelectedHint')}</div>`}
     <label class="label-sm">${t('stackOffsetLabel')}</label>
-    <select class="field stack-offset-select" id="${prefix}Offset">
+    <select class="field stack-offset-select" id="${prefix}Offset" aria-label="${t('stackOffsetLabel')}">
       <option value="0" ${draft.offset === 0 ? 'selected' : ''}>${t('offsetNow')}</option>
       <option value="10" ${draft.offset === 10 ? 'selected' : ''}>${t('offset10')}</option>
       <option value="30" ${draft.offset === 30 ? 'selected' : ''}>${t('offset30')}</option>
@@ -601,7 +601,7 @@ function seriesPickerGroup(series, draft) {
           <span class="ep-title">${escapeHtml(series.title)}</span>
           <span class="ep-sub">${escapeHtml(seriesSummary(series))}</span>
         </span>
-        ${someSelected ? `<span class="chip" style="font-size:8.5px;">${t('partialLabel')}</span>` : ''}
+        ${someSelected ? `<span class="chip" style="font-size:11px;">${t('partialLabel')}</span>` : ''}
       </label>
       ${series.members.length > 1 ? `
         <div class="event-picker-members">
@@ -687,12 +687,12 @@ function habitRowHtml(habit) {
       </button>
       <div class="grow habit-edit-trigger" data-id="${habit.id}" style="cursor:pointer;">
         <div class="habit-name" style="font-size:12px; font-weight:700;">${escapeHtml(habit.name)}</div>
-        <div style="font-size:10px; color:var(--text-muted);">${subParts.length ? subParts.join(' · ') : t('everyDayLabel')}</div>
+        <div style="font-size:11px; color:var(--text-muted);">${subParts.length ? subParts.join(' · ') : t('everyDayLabel')}</div>
         ${needsRelink ? `<div class="relink-warning">${icon.warnTriangle}${t('needsRelinkWarning')}</div>` : ''}
       </div>
       ${streak > 0 ? `<span class="chip streak"><span class="streak-flame">🔥</span>${streak}</span>` : ''}
-      <button class="chip clickable habit-edit-btn" data-id="${habit.id}" title="${t('edit')}">${icon.pencil}</button>
-      <button class="chip clickable habit-remove" data-id="${habit.id}" title="${t('removeHabit')}">${icon.trash}</button>
+      <button class="chip clickable habit-edit-btn" data-id="${habit.id}" title="${t('edit')}" aria-label="${t('edit')}: ${escapeAttr(habit.name)}">${icon.pencil}</button>
+      <button class="chip clickable habit-remove" data-id="${habit.id}" title="${t('removeHabit')}" aria-label="${t('removeHabit')}: ${escapeAttr(habit.name)}">${icon.trash}</button>
     </div>
   `;
 }
@@ -741,5 +741,5 @@ function escapeHtml(s) {
 }
 
 function escapeAttr(s) {
-  return String(s || '').replace(/"/g, '&quot;');
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }

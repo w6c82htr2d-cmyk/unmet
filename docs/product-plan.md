@@ -147,8 +147,8 @@ automatically. Design: `docs/auth-architecture.md`. Sign in with Apple comes lat
 
 | Phase | Contents | Approval gate |
 |---|---|---|
-| **A** | Review the architecture against the current code; prepare the Supabase schema, Row Level Security policies and local tests | Done in this phase (prepared locally, nothing provisioned) |
-| **B** | Login/signup screen ("Meet your unmet potential."): Continue with email, Create an account, Sign in, Continue as guest; email verification; logout; session persistence; English/Arabic, dark, accessible | Owner creates the Supabase project and approves the auth settings |
+| **A** *(done)* | Review the architecture against the current code; prepare the Supabase schema, Row Level Security policies and local tests (43 checks pass on local Postgres) | Done; nothing provisioned |
+| **B** *(built; awaiting verification on the real test project)* | Login/signup screen ("Meet your unmet potential."): Create an account, Sign in, Continue as guest; 6-digit email codes; logout (this device / everywhere); session persistence; Account section in Settings; English/Arabic, dark, accessible. Tested against a simulated Supabase Auth service. | Owner sets up the test project (`docs/auth-architecture.md` §9) |
 | **C** | Cloud storage and automatic sync: queue local changes, push/pull, conflict rules, sync status, offline. **Journal sync optional and OFF by default**; guests keep journals local | Applying the schema migration to the owner's project |
 | **D** | Guest → account migration: backup, preview, explicit consent, ids and links preserved, reconciliation options, cloud copy verified, local data kept | Approval before any real data is migrated |
 | **E** | Test sync, security and offline behaviour with synthetic accounts on two separate sessions or devices; RLS penetration tests | — |

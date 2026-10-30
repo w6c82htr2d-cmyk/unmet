@@ -120,11 +120,16 @@ No method of storage or transmission is completely secure, and we can't guarante
 [Owner to decide: the minimum age for using UNMET, and what happens if a younger child uses it. UNMET
 is aimed at university students.]
 
-## 10. Accounts and subscriptions (not yet available)
+## 10. Accounts (in testing) and subscriptions (not available)
 
-UNMET does not currently offer accounts or paid subscriptions. If they're introduced, this policy
-will be updated before they launch, to explain what's stored with an account and how optional
-journal syncing works.
+[Include this section once accounts are switched on for users. Today they're only enabled in test builds.]
+
+- **Creating an account is optional.** Guests can use every feature.
+- **To sign in** you give your email address, and we email you a one-time 6-digit code. Our sign-in provider **Supabase** ([region: owner to confirm]) stores your email address and account records such as creation and last sign-in times, to run your account.
+- **Staying signed in:** your browser keeps a sign-in session (access and refresh tokens) so you stay signed in. Signing out removes it from that browser; "Sign out everywhere" ends your sessions on all devices.
+- **Your data:** at this stage your habits, calendar and journals stay on your device even when you're signed in. [Update when automatic sync launches, including that journal syncing is optional and off by default.]
+- **Deleting your account:** [describe once account deletion is available.]
+- **Subscriptions:** UNMET doesn't offer paid subscriptions. This policy will be updated before that changes.
 
 ## 11. Changes
 
@@ -139,7 +144,7 @@ We'll update this page when how UNMET handles data changes, and change the effec
 
 ### Owner review checklist (remove before publishing)
 - [ ] Legal name, country and contact email
-- [ ] Upstash region; Vercel plan and log retention
+- [ ] Upstash and Supabase regions; Vercel plan and log retention
 - [ ] Anthropic API data retention and training terms (current wording and link)
 - [ ] Minimum age
 - [ ] Applicable laws and rights section (legal review)

@@ -220,18 +220,40 @@ Guests and signed-in users who don't opt in keep journals **only on their device
 | Email (Resend) | Free, 3,000 emails/month | about $20/month beyond |
 | Apple Developer Program | Not needed yet | $99/year at the iOS phase |
 
-## 9. Setup the owner will need to do (requested at the start of Phase B; nothing done yet)
+## 9. Setting up the Supabase test project (owner steps)
 
-1. **Create a Supabase project** (free tier) and choose a region. Note that free projects pause after about a week of inactivity, and Pro is $25/month.
-2. **Authentication settings:**
-   - enable Email
-   - use the 6-digit code template (`{{ .Token }}`)
-   - set the Site URL to `https://www.getunmet.com` and allow preview URLs
-   - keep the default rate limits
-3. **Email sending:** the built-in sender is only for testing (low limits). Before real users, connect a free SMTP provider (e.g. Resend, 3,000 emails/month) and add its DNS records to getunmet.com.
-4. **Apply the migration** in the SQL editor or with the Supabase CLI, after reviewing it. *(Needs the owner's approval at that point.)*
-5. **Vercel environment variables:**
-   - `SUPABASE_URL` and `SUPABASE_ANON_KEY` (public)
-   - `SUPABASE_SERVICE_ROLE_KEY` (server functions only, never in the browser)
-   - previews can point at a separate test project
-6. **New dependency:** `@supabase/supabase-js`, Supabase's official browser library, which handles sessions and token refresh. It would be the app's first runtime dependency. *(Needs approval; the alternative is hand-written calls to Supabase's API, which means more of our own security-sensitive code.)*
+Use a **separate test project**. Nothing here touches production, which stays guest-only. Dashboard
+labels may differ slightly from the names below.
+
+1. **Create the project.** At supabase.com choose New project, name it e.g. `unmet-test`, on the Free plan.
+   - Pick the region closest to your testers.
+   - Choose a strong database password and keep it in your password manager. **Don't send it to anyone, including me.**
+2. **Turn on email codes.** Go to Authentication → Sign In / Providers → Email:
+   - Email provider **on**
+   - "Confirm email" **on**
+   - **Email OTP length: 6**
+   - **Email OTP expiration: 600 seconds** (10 minutes)
+3. **Make the emails show the code.** Go to Authentication → Email Templates. Edit **both** "Confirm signup" (sent to new users) and "Magic Link" (sent to returning users):
+   - Replace the link with the code, e.g. *"Your UNMET code is **{{ .Token }}**. It expires in 10 minutes. If you didn't ask for it, you can ignore this email."*
+   - Remove `{{ .ConfirmationURL }}`, because UNMET doesn't use links.
+4. **URL settings.** Under Authentication → URL Configuration, set the Site URL to your Vercel preview address. Codes don't need redirect URLs.
+5. **Email sending for testing.** The built-in sender is rate-limited and meant for testing. It may only deliver to the email addresses of your Supabase team members. Test with your own address, or invite test addresses to the project team. A custom email provider (e.g. Resend) is needed before real users.
+6. **Rate limits.** Keep Supabase's defaults under Authentication → Rate Limits. They limit code emails and verification attempts per IP. CAPTCHA (Attack Protection) can come later; it needs a security-policy change.
+7. **Copy the two public values.** From Project Settings → API Keys:
+   - the **Project URL** (`https://<ref>.supabase.co`)
+   - the **Publishable key** (`sb_publishable_…`; on older projects, the "anon public" key)
+   - **Never copy the secret / service_role key into the app, a message or the repo.**
+8. **Add them to Vercel, Preview only.** In Vercel go to Project → Settings → Environment Variables:
+   - add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - select **Preview** only, not Production
+   - production builds then keep accounts switched off
+9. **Send me the Project URL and the publishable key.** Both are designed to be public; Row Level Security protects the data. I'll add exactly that URL to `connect-src` in `vercel.json` (the build refuses to run otherwise), then you can open a preview deployment and test.
+10. **Not yet:** the service-role key (only needed by server functions in Phase C, stored as a *Sensitive* Vercel variable) and applying the database migration. Both need approval at the start of Phase C.
+
+**Verifying on the real test project** (you do this, because only you receive the emails):
+1. On the preview, choose Create an account and enter your email. The email arrives with a 6-digit code, and entering it signs you in.
+2. A wrong code shows an error. "Send a new code" unlocks after 60 seconds.
+3. Refresh the page, then close and reopen the browser: you're still signed in (Settings → Account).
+4. Sign out: Settings shows guest again and your data is unchanged.
+5. Sign in on a second device or browser with the same email. (Your habits won't appear there yet; automatic sync is Phase C.)
+6. Repeat once in Arabic.
